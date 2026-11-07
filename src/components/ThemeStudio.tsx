@@ -16,6 +16,8 @@ import {
   Camera,
   Heart,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
   Monitor,
   Tablet,
   CheckCircle2,
@@ -123,6 +125,32 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     showToast(`✓ Posisi ${element} dikembalikan ke tengah.`);
   };
 
+  const snapElement = (
+    element: "title" | "subtitle" | "button" | "logo" | "tags",
+    pos: "left" | "center" | "right" | "up" | "down"
+  ) => {
+    const offsetKey = `${element}Offset` as keyof CustomHomeDesign;
+    const current = (currentDesign[offsetKey] as { x: number; y: number }) || { x: 0, y: 0 };
+    let newX = current.x;
+    let newY = current.y;
+    if (pos === "center") {
+      newX = 0;
+      newY = 0;
+    } else if (pos === "left") {
+      newX = -150;
+    } else if (pos === "right") {
+      newX = 150;
+    } else if (pos === "up") {
+      newY -= 20;
+    } else if (pos === "down") {
+      newY += 20;
+    }
+
+    updateCurrentDesign({ [offsetKey]: { x: newX, y: newY } });
+    soundFx.playChime();
+    showToast(`✓ Posisi ${element} diperbarui.`);
+  };
+
   const handlePointerDown = (
     e: React.PointerEvent,
     elementId: string,
@@ -132,9 +160,13 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
   ) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     e.stopPropagation();
-    e.preventDefault();
 
     setSelectedElement(elementId);
+    if (elementId === "logo") setActiveTab("logo");
+    if (elementId === "title" || elementId === "subtitle" || elementId === "tags") setActiveTab("typography");
+    if (elementId === "button") setActiveTab("button");
+    if (isCustom) setActiveTab("elements");
+
     soundFx.playPop();
 
     const canvas = document.getElementById("canva-preview-canvas");
@@ -149,11 +181,13 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     const startTopPercent = customElement?.y ?? 50;
 
     let hasMoved = false;
+    let rafId: number | null = null;
+    let latestEv: PointerEvent | null = null;
 
-    const onPointerMove = (moveEv: PointerEvent) => {
-      hasMoved = true;
-      const deltaX = moveEv.clientX - startX;
-      const deltaY = moveEv.clientY - startY;
+    const applyMove = () => {
+      if (!latestEv) return;
+      const deltaX = latestEv.clientX - startX;
+      const deltaY = latestEv.clientY - startY;
 
       if (isCustom) {
         const pctX = (deltaX / canvasRect.width) * 100;
@@ -192,12 +226,27 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           )
         );
       }
+      rafId = null;
+    };
+
+    const onPointerMove = (moveEv: PointerEvent) => {
+      hasMoved = true;
+      moveEv.preventDefault();
+      latestEv = moveEv;
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyMove);
+      }
     };
 
     const onPointerUp = () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        applyMove();
+      }
 
       if (hasMoved) {
         setDesigns((prev) => {
@@ -211,6 +260,137 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
+  };
+
+  // Real Corner Drag-To-Resize for All Elements (Custom, Logo, Title, Button)
+  const handleResizeCornerPointerDown = (
+    e: React.PointerEvent,
+    targetType: "custom" | "logo" | "title" | "button",
+    elementId: string,
+    corner: "nw" | "ne" | "sw" | "se",
+    initialVal: number
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    soundFx.playPop();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let hasMoved = false;
+    let rafId: number | null = null;
+    let latestEv: PointerEvent | null = null;
+
+    const applyResize = () => {
+      if (!latestEv) return;
+      const deltaX = latestEv.clientX - startX;
+      const deltaY = latestEv.clientY - startY;
+
+      let delta = 0;
+      if (corner === "se") delta = (deltaX + deltaY) / 2;
+      else if (corner === "nw") delta = (-deltaX - deltaY) / 2;
+      else if (corner === "ne") delta = (deltaX - deltaY) / 2;
+      else if (corner === "sw") delta = (-deltaX + deltaY) / 2;
+
+      if (targetType === "custom") {
+        const newWidth = Math.max(35, Math.min(650, Math.round(initialVal + delta * 1.4)));
+        setDesigns((prev) =>
+          prev.map((item) =>
+            item.id === currentDesign.id
+              ? {
+                  ...item,
+                  customElements: (item.customElements || []).map((el) =>
+                    el.id === elementId ? { ...el, width: newWidth } : el
+                  ),
+                }
+              : item
+          )
+        );
+      } else if (targetType === "logo") {
+        const newSize = Math.max(50, Math.min(260, Math.round(initialVal + delta * 1.2)));
+        setDesigns((prev) =>
+          prev.map((item) =>
+            item.id === currentDesign.id ? { ...item, logoSize: newSize } : item
+          )
+        );
+      } else if (targetType === "title") {
+        const newScale = Math.max(0.6, Math.min(2.2, Number((initialVal + delta * 0.007).toFixed(2))));
+        setDesigns((prev) =>
+          prev.map((item) =>
+            item.id === currentDesign.id ? { ...item, titleScale: newScale } : item
+          )
+        );
+      } else if (targetType === "button") {
+        const newScale = Math.max(0.7, Math.min(1.8, Number((initialVal + delta * 0.007).toFixed(2))));
+        setDesigns((prev) =>
+          prev.map((item) =>
+            item.id === currentDesign.id ? { ...item, buttonScale: newScale } : item
+          )
+        );
+      }
+      rafId = null;
+    };
+
+    const onPointerMove = (moveEv: PointerEvent) => {
+      hasMoved = true;
+      moveEv.preventDefault();
+      latestEv = moveEv;
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyResize);
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        applyResize();
+      }
+
+      if (hasMoved) {
+        setDesigns((prev) => {
+          saveCustomDesigns(prev);
+          pushToServer({ customDesigns: prev, activeDesignId: activeId }).catch(() => {});
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+  };
+
+  // Quick positioning snap
+  const snapCustomElement = (
+    id: string,
+    position: "left-bottom" | "right-bottom" | "center" | "left-top" | "right-top"
+  ) => {
+    let x = 50;
+    let y = 50;
+    if (position === "left-bottom") { x = 18; y = 78; }
+    if (position === "right-bottom") { x = 82; y = 78; }
+    if (position === "center") { x = 50; y = 50; }
+    if (position === "left-top") { x = 18; y = 25; }
+    if (position === "right-top") { x = 82; y = 25; }
+
+    updateCustomElement(id, { x, y });
+    soundFx.playChime();
+    showToast(`✓ Posisi elemen dipindahkan.`);
+  };
+
+  // Duplicate custom element
+  const duplicateCustomElement = (id: string) => {
+    const target = (currentDesign.customElements || []).find((el) => el.id === id);
+    if (!target) return;
+    addCustomElement({
+      ...target,
+      x: Math.min(90, target.x + 4),
+      y: Math.min(90, target.y + 4),
+      name: `${target.name || "Elemen"} (Salinan)`,
+    });
   };
 
   // Add / Edit / Remove Custom Canva Elements
@@ -517,6 +697,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedElement("logo");
+                setActiveTab("logo");
               }}
               className={`relative mb-4 z-20 cursor-grab active:cursor-grabbing transition-shadow ${
                 selectedElement === "logo"
@@ -530,31 +711,99 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             >
               {selectedElement === "logo" && (
                 <>
-                  <div className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                  <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                  <div className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                  <div className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
+                  {/* Interactive Canva 4-corner resize handles for Logo */}
+                  <div
+                    onPointerDown={(e) => handleResizeCornerPointerDown(e, "logo", "logo", "nw", d.logoSize || 110)}
+                    className="absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                    title="Tarik sudut untuk ubah ukuran"
+                  />
+                  <div
+                    onPointerDown={(e) => handleResizeCornerPointerDown(e, "logo", "logo", "ne", d.logoSize || 110)}
+                    className="absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                    title="Tarik sudut untuk ubah ukuran"
+                  />
+                  <div
+                    onPointerDown={(e) => handleResizeCornerPointerDown(e, "logo", "logo", "sw", d.logoSize || 110)}
+                    className="absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                    title="Tarik sudut untuk ubah ukuran"
+                  />
+                  <div
+                    onPointerDown={(e) => handleResizeCornerPointerDown(e, "logo", "logo", "se", d.logoSize || 110)}
+                    className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                    title="Tarik sudut untuk ubah ukuran"
+                  />
                   
                   {/* Floating Action Pill */}
                   <div
                     onPointerDown={(e) => e.stopPropagation()}
-                    className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-200 shadow-[0_4px_16px_rgba(0,0,0,0.12)] flex items-center gap-2 whitespace-nowrap z-40"
+                    className="absolute -top-11 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-slate-200 shadow-[0_8px_25px_rgba(0,0,0,0.18)] flex items-center gap-1.5 whitespace-nowrap z-50"
                   >
                     <span className="text-[#7D2AE8] font-bold">Logo</span>
-                    <span className="text-slate-400 font-mono text-[10px]">
-                      ({d.logoOffset?.x || 0}, {d.logoOffset?.y || 0})
-                    </span>
-                    {((d.logoOffset?.x || 0) !== 0 || (d.logoOffset?.y || 0) !== 0) && (
+                    <div className="h-3 w-px bg-slate-200" />
+
+                    <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          resetOffset("logo");
-                        }}
-                        className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                        onClick={() => snapElement("logo", "left")}
+                        className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                        title="Geser Kiri"
                       >
-                        Reset Posisi
+                        👈 Kiri
                       </button>
-                    )}
+                      <button
+                        onClick={() => snapElement("logo", "center")}
+                        className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                        title="Tengah"
+                      >
+                        🎯 Tengah
+                      </button>
+                      <button
+                        onClick={() => snapElement("logo", "right")}
+                        className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                        title="Geser Kanan"
+                      >
+                        Kanan 👉
+                      </button>
+                      <button
+                        onClick={() => snapElement("logo", "up")}
+                        className="p-1 hover:bg-white rounded text-slate-700"
+                        title="Naik"
+                      >
+                        <ArrowUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => snapElement("logo", "down")}
+                        className="p-1 hover:bg-white rounded text-slate-700"
+                        title="Turun"
+                      >
+                        <ArrowDown size={11} />
+                      </button>
+                    </div>
+
+                    <div className="h-3 w-px bg-slate-200" />
+                    <button
+                      onClick={() => updateCurrentDesign({ logoSize: Math.max(50, (d.logoSize || 110) - 15) })}
+                      className="w-5 h-5 flex items-center justify-center hover:bg-slate-100 rounded text-slate-700 font-bold"
+                      title="Perkecil Logo"
+                    >
+                      -
+                    </button>
+                    <button
+                      onClick={() => updateCurrentDesign({ logoSize: Math.min(240, (d.logoSize || 110) + 15) })}
+                      className="w-5 h-5 flex items-center justify-center hover:bg-slate-100 rounded text-slate-700 font-bold"
+                      title="Perbesar Logo"
+                    >
+                      +
+                    </button>
+                    <div className="h-3 w-px bg-slate-200" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetOffset("logo");
+                      }}
+                      className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                    >
+                      Reset
+                    </button>
                   </div>
                 </>
               )}
@@ -616,6 +865,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedElement("subtitle");
+                setActiveTab("typography");
               }}
               className={`relative mb-2 z-20 max-w-full cursor-grab active:cursor-grabbing transition-shadow flex items-center gap-2 ${
                 selectedElement === "subtitle"
@@ -636,20 +886,59 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                   
                   <div
                     onPointerDown={(e) => e.stopPropagation()}
-                    className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-200 shadow-[0_4px_16px_rgba(0,0,0,0.12)] flex items-center gap-2 whitespace-nowrap z-40"
+                    className="absolute -top-11 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-slate-200 shadow-[0_8px_25px_rgba(0,0,0,0.18)] flex items-center gap-1.5 whitespace-nowrap z-50"
                   >
                     <span className="text-[#7D2AE8] font-bold">Subjudul</span>
-                    {((d.subtitleOffset?.x || 0) !== 0 || (d.subtitleOffset?.y || 0) !== 0) && (
+                    <div className="h-3 w-px bg-slate-200" />
+
+                    <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          resetOffset("subtitle");
-                        }}
-                        className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                        onClick={() => snapElement("subtitle", "left")}
+                        className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                        title="Geser Kiri"
                       >
-                        Reset
+                        👈 Kiri
                       </button>
-                    )}
+                      <button
+                        onClick={() => snapElement("subtitle", "center")}
+                        className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                        title="Tengah"
+                      >
+                        🎯 Tengah
+                      </button>
+                      <button
+                        onClick={() => snapElement("subtitle", "right")}
+                        className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                        title="Geser Kanan"
+                      >
+                        Kanan 👉
+                      </button>
+                      <button
+                        onClick={() => snapElement("subtitle", "up")}
+                        className="p-1 hover:bg-white rounded text-slate-700"
+                        title="Naik"
+                      >
+                        <ArrowUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => snapElement("subtitle", "down")}
+                        className="p-1 hover:bg-white rounded text-slate-700"
+                        title="Turun"
+                      >
+                        <ArrowDown size={11} />
+                      </button>
+                    </div>
+
+                    <div className="h-3 w-px bg-slate-200" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetOffset("subtitle");
+                      }}
+                      className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                    >
+                      Reset
+                    </button>
                   </div>
                 </>
               )}
@@ -685,6 +974,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               setSelectedElement("title");
+              setActiveTab("typography");
             }}
             className={`relative my-1 z-20 max-w-full cursor-grab active:cursor-grabbing transition-shadow ${
               selectedElement === "title"
@@ -692,33 +982,115 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                 : "hover:ring-1 hover:ring-[#7D2AE8]/60 rounded-2xl"
             }`}
             style={{
-              transform: `translate(${d.titleOffset?.x || 0}px, ${d.titleOffset?.y || 0}px)`,
+              transform: `translate(${d.titleOffset?.x || 0}px, ${d.titleOffset?.y || 0}px) ${
+                d.titleScale && d.titleScale !== 1 ? `scale(${d.titleScale})` : ""
+              }`,
               touchAction: "none",
             }}
           >
             {selectedElement === "title" && (
               <>
-                <div className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                <div className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                <div className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
+                {/* Interactive Canva 4-corner resize handles for Title */}
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "title", "title", "nw", d.titleScale || 1)}
+                  className="absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "title", "title", "ne", d.titleScale || 1)}
+                  className="absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "title", "title", "sw", d.titleScale || 1)}
+                  className="absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "title", "title", "se", d.titleScale || 1)}
+                  className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
                 
                 <div
                   onPointerDown={(e) => e.stopPropagation()}
-                  className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-200 shadow-[0_4px_16px_rgba(0,0,0,0.12)] flex items-center gap-2 whitespace-nowrap z-40"
+                  className="absolute -top-11 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-slate-200 shadow-[0_8px_25px_rgba(0,0,0,0.18)] flex items-center gap-1.5 whitespace-nowrap z-50"
                 >
                   <span className="text-[#7D2AE8] font-bold">Judul Acara</span>
-                  {((d.titleOffset?.x || 0) !== 0 || (d.titleOffset?.y || 0) !== 0) && (
+                  <div className="h-3 w-px bg-slate-200" />
+
+                  <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        resetOffset("title");
-                      }}
-                      className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                      onClick={() => snapElement("title", "left")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Geser Kiri"
                     >
-                      Reset
+                      👈 Kiri
                     </button>
-                  )}
+                    <button
+                      onClick={() => snapElement("title", "center")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Tengah"
+                    >
+                      🎯 Tengah
+                    </button>
+                    <button
+                      onClick={() => snapElement("title", "right")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Geser Kanan"
+                    >
+                      Kanan 👉
+                    </button>
+                    <button
+                      onClick={() => snapElement("title", "up")}
+                      className="p-1 hover:bg-white rounded text-slate-700"
+                      title="Naik"
+                    >
+                      <ArrowUp size={11} />
+                    </button>
+                    <button
+                      onClick={() => snapElement("title", "down")}
+                      className="p-1 hover:bg-white rounded text-slate-700"
+                      title="Turun"
+                    >
+                      <ArrowDown size={11} />
+                    </button>
+                  </div>
+
+                  <div className="h-3 w-px bg-slate-200" />
+                  <button
+                    onClick={() =>
+                      updateCurrentDesign({
+                        titleScale: Math.max(0.6, Number(((d.titleScale || 1) - 0.1).toFixed(1))),
+                      })
+                    }
+                    className="px-1.5 py-0.5 hover:bg-slate-100 rounded text-slate-700 font-bold text-xs"
+                    title="Perkecil Ukuran Judul"
+                  >
+                    A-
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateCurrentDesign({
+                        titleScale: Math.min(2.0, Number(((d.titleScale || 1) + 0.1).toFixed(1))),
+                      })
+                    }
+                    className="px-1.5 py-0.5 hover:bg-slate-100 rounded text-slate-700 font-bold text-xs"
+                    title="Perbesar Ukuran Judul"
+                  >
+                    A+
+                  </button>
+                  <div className="h-3 w-px bg-slate-200" />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetOffset("title");
+                      updateCurrentDesign({ titleScale: 1 });
+                    }}
+                    className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                  >
+                    Reset
+                  </button>
                 </div>
               </>
             )}
@@ -747,6 +1119,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               setSelectedElement("tags");
+              setActiveTab("typography");
             }}
             className={`relative mt-2 mb-8 z-20 cursor-grab active:cursor-grabbing transition-shadow flex flex-wrap items-center justify-center gap-2 ${
               selectedElement === "tags"
@@ -767,20 +1140,59 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                 
                 <div
                   onPointerDown={(e) => e.stopPropagation()}
-                  className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-200 shadow-[0_4px_16px_rgba(0,0,0,0.12)] flex items-center gap-2 whitespace-nowrap z-40"
+                  className="absolute -top-11 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-slate-200 shadow-[0_8px_25px_rgba(0,0,0,0.18)] flex items-center gap-1.5 whitespace-nowrap z-50"
                 >
-                  <span className="text-[#7D2AE8] font-bold">Tagar</span>
-                  {((d.tagsOffset?.x || 0) !== 0 || (d.tagsOffset?.y || 0) !== 0) && (
+                  <span className="text-[#7D2AE8] font-bold">Tagar & Tanggal</span>
+                  <div className="h-3 w-px bg-slate-200" />
+
+                  <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        resetOffset("tags");
-                      }}
-                      className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                      onClick={() => snapElement("tags", "left")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Geser Kiri"
                     >
-                      Reset
+                      👈 Kiri
                     </button>
-                  )}
+                    <button
+                      onClick={() => snapElement("tags", "center")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Tengah"
+                    >
+                      🎯 Tengah
+                    </button>
+                    <button
+                      onClick={() => snapElement("tags", "right")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Geser Kanan"
+                    >
+                      Kanan 👉
+                    </button>
+                    <button
+                      onClick={() => snapElement("tags", "up")}
+                      className="p-1 hover:bg-white rounded text-slate-700"
+                      title="Naik"
+                    >
+                      <ArrowUp size={11} />
+                    </button>
+                    <button
+                      onClick={() => snapElement("tags", "down")}
+                      className="p-1 hover:bg-white rounded text-slate-700"
+                      title="Turun"
+                    >
+                      <ArrowDown size={11} />
+                    </button>
+                  </div>
+
+                  <div className="h-3 w-px bg-slate-200" />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetOffset("tags");
+                    }}
+                    className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                  >
+                    Reset
+                  </button>
                 </div>
               </>
             )}
@@ -820,6 +1232,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               setSelectedElement("button");
+              setActiveTab("button");
             }}
             className={`relative z-20 cursor-grab active:cursor-grabbing transition-shadow ${
               selectedElement === "button"
@@ -827,33 +1240,115 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                 : "hover:ring-1 hover:ring-[#7D2AE8]/60 rounded-full"
             }`}
             style={{
-              transform: `translate(${d.buttonOffset?.x || 0}px, ${d.buttonOffset?.y || 0}px)`,
+              transform: `translate(${d.buttonOffset?.x || 0}px, ${d.buttonOffset?.y || 0}px) ${
+                d.buttonScale && d.buttonScale !== 1 ? `scale(${d.buttonScale})` : ""
+              }`,
               touchAction: "none",
             }}
           >
             {selectedElement === "button" && (
               <>
-                <div className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                <div className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                <div className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
+                {/* Interactive Canva 4-corner resize handles for Button */}
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "button", "button", "nw", d.buttonScale || 1)}
+                  className="absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "button", "button", "ne", d.buttonScale || 1)}
+                  className="absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "button", "button", "sw", d.buttonScale || 1)}
+                  className="absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
+                <div
+                  onPointerDown={(e) => handleResizeCornerPointerDown(e, "button", "button", "se", d.buttonScale || 1)}
+                  className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                  title="Tarik sudut untuk ubah ukuran"
+                />
                 
                 <div
                   onPointerDown={(e) => e.stopPropagation()}
-                  className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-200 shadow-[0_4px_16px_rgba(0,0,0,0.12)] flex items-center gap-2 whitespace-nowrap z-40"
+                  className="absolute -top-11 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-slate-200 shadow-[0_8px_25px_rgba(0,0,0,0.18)] flex items-center gap-1.5 whitespace-nowrap z-50"
                 >
                   <span className="text-[#7D2AE8] font-bold">Tombol Mulai</span>
-                  {((d.buttonOffset?.x || 0) !== 0 || (d.buttonOffset?.y || 0) !== 0) && (
+                  <div className="h-3 w-px bg-slate-200" />
+
+                  <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        resetOffset("button");
-                      }}
-                      className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                      onClick={() => snapElement("button", "left")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Geser Kiri"
                     >
-                      Reset
+                      👈 Kiri
                     </button>
-                  )}
+                    <button
+                      onClick={() => snapElement("button", "center")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Tengah"
+                    >
+                      🎯 Tengah
+                    </button>
+                    <button
+                      onClick={() => snapElement("button", "right")}
+                      className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                      title="Geser Kanan"
+                    >
+                      Kanan 👉
+                    </button>
+                    <button
+                      onClick={() => snapElement("button", "up")}
+                      className="p-1 hover:bg-white rounded text-slate-700"
+                      title="Naik"
+                    >
+                      <ArrowUp size={11} />
+                    </button>
+                    <button
+                      onClick={() => snapElement("button", "down")}
+                      className="p-1 hover:bg-white rounded text-slate-700"
+                      title="Turun"
+                    >
+                      <ArrowDown size={11} />
+                    </button>
+                  </div>
+
+                  <div className="h-3 w-px bg-slate-200" />
+                  <button
+                    onClick={() =>
+                      updateCurrentDesign({
+                        buttonScale: Math.max(0.7, Number(((d.buttonScale || 1) - 0.1).toFixed(1))),
+                      })
+                    }
+                    className="w-5 h-5 flex items-center justify-center hover:bg-slate-100 rounded text-slate-700 font-bold"
+                    title="Perkecil Tombol"
+                  >
+                    -
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateCurrentDesign({
+                        buttonScale: Math.min(1.8, Number(((d.buttonScale || 1) + 0.1).toFixed(1))),
+                      })
+                    }
+                    className="w-5 h-5 flex items-center justify-center hover:bg-slate-100 rounded text-slate-700 font-bold"
+                    title="Perbesar Tombol"
+                  >
+                    +
+                  </button>
+                  <div className="h-3 w-px bg-slate-200" />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetOffset("button");
+                      updateCurrentDesign({ buttonScale: 1 });
+                    }}
+                    className="text-[#7D2AE8] hover:underline font-bold text-[10px] cursor-pointer"
+                  >
+                    Reset
+                  </button>
                 </div>
               </>
             )}
@@ -878,7 +1373,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           </div>
         </div>
 
-        {/* Freeform Canva Draggable Custom Elements */}
+        {/* Freeform Canva Draggable Custom Elements with Interactive Corner Scaling */}
         {d.customElements &&
           d.customElements.map((el) => {
             const isSelected = selectedElement === el.id;
@@ -889,37 +1384,84 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedElement(el.id);
+                  setActiveTab("elements");
                 }}
                 style={{
                   position: "absolute",
                   left: `${el.x}%`,
                   top: `${el.y}%`,
                   transform: `translate(-50%, -50%) rotate(${el.rotation || 0}deg)`,
-                  zIndex: el.zIndex || 25,
+                  zIndex: isSelected ? 45 : el.zIndex || 25,
                   touchAction: "none",
                 }}
                 className={`cursor-grab active:cursor-grabbing select-none transition-shadow ${
                   isSelected
-                    ? "ring-2 ring-[#7D2AE8] ring-offset-2 ring-offset-white shadow-2xl rounded-lg"
-                    : "hover:ring-1 hover:ring-[#7D2AE8]/60 rounded-lg"
+                    ? "ring-2 ring-[#7D2AE8] ring-offset-2 ring-offset-white shadow-2xl rounded-xl"
+                    : "hover:ring-2 hover:ring-[#7D2AE8]/60 rounded-xl"
                 }`}
+                title="Klik & seret untuk memindahkan posisi"
               >
                 {isSelected && (
                   <>
-                    <div className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                    <div className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
-                    <div className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-[#7D2AE8] rounded-full z-30 pointer-events-none shadow-sm" />
+                    {/* Real Interactive Corner Handles to Drag-Resize */}
+                    <div
+                      onPointerDown={(e) => handleResizeCornerPointerDown(e, "custom", el.id, "nw", el.width || 130)}
+                      className="absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                      title="Tarik sudut untuk ubah ukuran"
+                    />
+                    <div
+                      onPointerDown={(e) => handleResizeCornerPointerDown(e, "custom", el.id, "ne", el.width || 130)}
+                      className="absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                      title="Tarik sudut untuk ubah ukuran"
+                    />
+                    <div
+                      onPointerDown={(e) => handleResizeCornerPointerDown(e, "custom", el.id, "sw", el.width || 130)}
+                      className="absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nesw-resize shadow-md hover:scale-125 transition-transform"
+                      title="Tarik sudut untuk ubah ukuran"
+                    />
+                    <div
+                      onPointerDown={(e) => handleResizeCornerPointerDown(e, "custom", el.id, "se", el.width || 130)}
+                      className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-[#7D2AE8] rounded-full z-40 cursor-nwse-resize shadow-md hover:scale-125 transition-transform"
+                      title="Tarik sudut untuk ubah ukuran"
+                    />
 
                     {/* Floating Canva Toolbar */}
                     <div
                       onPointerDown={(e) => e.stopPropagation()}
-                      className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 shadow-[0_6px_20px_rgba(0,0,0,0.15)] flex items-center gap-1.5 whitespace-nowrap z-40"
+                      className="absolute -top-11 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-slate-200 shadow-[0_8px_25px_rgba(0,0,0,0.18)] flex items-center gap-1.5 whitespace-nowrap z-50"
                     >
-                      <span className="text-[10px] text-[#7D2AE8] font-bold truncate max-w-[80px]">
-                        {el.name || (el.type === "text" ? el.content : "Objek")}
+                      <span className="text-[10px] text-[#7D2AE8] font-bold max-w-[85px] truncate">
+                        {el.name || (el.type === "text" ? el.content : "Elemen")}
                       </span>
                       <div className="h-3 w-px bg-slate-200" />
+                      
+                      {/* Quick Snap Positions */}
+                      <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                        <button
+                          onClick={() => snapCustomElement(el.id, "left-bottom")}
+                          className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                          title="Pindah ke Kiri Bawah"
+                        >
+                          👈 Kiri
+                        </button>
+                        <button
+                          onClick={() => snapCustomElement(el.id, "center")}
+                          className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                          title="Pindah ke Tengah"
+                        >
+                          🎯 Tengah
+                        </button>
+                        <button
+                          onClick={() => snapCustomElement(el.id, "right-bottom")}
+                          className="px-1.5 py-0.5 hover:bg-white rounded text-[10px] font-bold text-slate-700 transition-colors"
+                          title="Pindah ke Kanan Bawah"
+                        >
+                          Kanan 👉
+                        </button>
+                      </div>
+
+                      <div className="h-3 w-px bg-slate-200" />
+
                       {el.type !== "text" ? (
                         <>
                           <button
@@ -936,7 +1478,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                           <button
                             onClick={() =>
                               updateCustomElement(el.id, {
-                                width: Math.min(400, (el.width || 120) + 20),
+                                width: Math.min(500, (el.width || 120) + 20),
                               })
                             }
                             className="w-5 h-5 flex items-center justify-center hover:bg-slate-100 rounded text-slate-700 font-bold"
@@ -983,9 +1525,16 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                         <RotateCcw size={12} className="rotate-180" />
                       </button>
                       <button
+                        onClick={() => duplicateCustomElement(el.id)}
+                        className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900"
+                        title="Duplikat Elemen"
+                      >
+                        <Copy size={12} />
+                      </button>
+                      <button
                         onClick={() => deleteCustomElement(el.id)}
                         className="p-1 hover:bg-red-50 rounded text-red-500 hover:text-red-700"
-                        title="Hapus"
+                        title="Hapus Elemen"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -1213,7 +1762,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             {/* TAB: ELEMEN (CANVA STYLE) */}
             {activeTab === "elements" && (
               <div className="space-y-5">
-                {/* Visual Category Tiles (Exact Canva Screenshot Match) */}
+                {/* Visual Category Tiles */}
                 <div>
                   <span className="text-xs font-bold text-slate-900 block mb-2">Telusuri Kategori</span>
                   <div className="grid grid-cols-4 gap-2">
@@ -1234,7 +1783,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                   </div>
                 </div>
 
-                {/* Section 1: Maskot & Logo Resmi Raicab Banjar V */}
+                {/* Section 1: Maskot & Logo Resmi Raicab Banjar V with Smart Default Positions */}
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900">Maskot & Logo Resmi</span>
@@ -1242,9 +1791,9 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { name: "Maskot Putra", url: "/assets/raicab/maskot-putra.png", width: 140 },
-                      { name: "Maskot Putri", url: "/assets/raicab/maskot-putri.png", width: 140 },
-                      { name: "Logo Raicab V", url: "/assets/raicab/logo-raicab-banjar.png", width: 130 },
+                      { name: "Maskot Putra", url: "/assets/raicab/maskot-putra.png", width: 140, defaultX: 18, defaultY: 76 },
+                      { name: "Maskot Putri", url: "/assets/raicab/maskot-putri.png", width: 140, defaultX: 82, defaultY: 76 },
+                      { name: "Logo Raicab V", url: "/assets/raicab/logo-raicab-banjar.png", width: 130, defaultX: 50, defaultY: 22 },
                     ].map((item, idx) => (
                       <button
                         key={idx}
@@ -1254,8 +1803,8 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                             name: item.name,
                             content: item.url,
                             width: item.width,
-                            x: 50,
-                            y: 50,
+                            x: item.defaultX,
+                            y: item.defaultY,
                           })
                         }
                         className="p-2 rounded-xl bg-white border border-slate-200 hover:border-[#7D2AE8] hover:shadow-md flex flex-col items-center gap-1.5 transition-all cursor-pointer group"
@@ -1292,7 +1841,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                             name: newCustomText.trim().substring(0, 15),
                             content: newCustomText.trim(),
                             x: 50,
-                            y: 50,
+                            y: 86,
                             fontSize: newCustomTextSize,
                             color: newCustomTextColor,
                             backgroundColor: newCustomTextBg === "transparent" ? undefined : newCustomTextBg,
@@ -1311,7 +1860,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                           name: newCustomText.trim().substring(0, 15),
                           content: newCustomText.trim(),
                           x: 50,
-                          y: 50,
+                          y: 86,
                           fontSize: newCustomTextSize,
                           color: newCustomTextColor,
                           backgroundColor: newCustomTextBg === "transparent" ? undefined : newCustomTextBg,
@@ -1437,16 +1986,28 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                             </span>
                           </div>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteCustomElement(el.id);
-                            }}
-                            className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-                            title="Hapus elemen"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateCustomElement(el.id);
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                              title="Duplikat"
+                            >
+                              <Copy size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteCustomElement(el.id);
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                              title="Hapus elemen"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2069,6 +2630,15 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
               <span className="text-slate-600 font-medium truncate max-w-[200px] sm:max-w-md">
                 Layar Utama Photobooth ({currentDesign.name})
               </span>
+              <div className="flex items-center gap-1 text-slate-400 ml-1">
+                <button
+                  onClick={() => duplicateCurrentDesign()}
+                  className="p-1 hover:text-slate-700 hover:bg-slate-200 rounded cursor-pointer transition-colors"
+                  title="Duplikat Halaman Desain Ini"
+                >
+                  <Copy size={13} />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -2079,6 +2649,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                   resetOffset("title");
                   resetOffset("tags");
                   resetOffset("button");
+                  updateCurrentDesign({ titleScale: 1, buttonScale: 1 });
                   showToast("✓ Semua elemen utama dikembalikan ke posisi tengah.");
                 }}
                 className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium flex items-center gap-1 shadow-xs transition-all text-xs cursor-pointer"
@@ -2129,7 +2700,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           {/* Bottom Desk Toolbar (Canva Footer) */}
           <div className="w-full max-w-5xl mt-3 flex items-center justify-between text-[11px] text-slate-500 px-2 shrink-0">
             <span className="hidden sm:inline">
-              💡 <strong>Tip Canva:</strong> Klik dan seret (drag & drop) langsung pada maskot, stiker, atau teks di atas layar!
+              💡 <strong>Tip Canva:</strong> Klik dan seret (drag & drop) langsung pada maskot, stiker, atau teks di atas layar! Tarik sudut untuk memperbesar ukuran.
             </span>
             <span className="sm:hidden">
               💡 Seret elemen langsung di layar

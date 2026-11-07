@@ -170,6 +170,8 @@ export interface CustomHomeDesign {
   titleOffset?: { x: number; y: number };
   tagsOffset?: { x: number; y: number };
   buttonOffset?: { x: number; y: number };
+  titleScale?: number;
+  buttonScale?: number;
   customElements?: CanvasElement[];
 
   // Background

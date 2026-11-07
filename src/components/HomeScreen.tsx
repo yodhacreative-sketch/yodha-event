@@ -219,7 +219,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 : {
                     color: d.titleColor || "#1e293b",
                   }),
-              transform: `translate(${d.titleOffset?.x || 0}px, ${d.titleOffset?.y || 0}px)`,
+              transform: `translate(${d.titleOffset?.x || 0}px, ${d.titleOffset?.y || 0}px) ${
+                d.titleScale && d.titleScale !== 1 ? `scale(${d.titleScale})` : ""
+              }`,
             }}
           >
             {d.titleText}
@@ -265,7 +267,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div
             className="z-10 transition-transform duration-75"
             style={{
-              transform: `translate(${d.buttonOffset?.x || 0}px, ${d.buttonOffset?.y || 0}px)`,
+              transform: `translate(${d.buttonOffset?.x || 0}px, ${d.buttonOffset?.y || 0}px) ${
+                d.buttonScale && d.buttonScale !== 1 ? `scale(${d.buttonScale})` : ""
+              }`,
             }}
           >
             <button
