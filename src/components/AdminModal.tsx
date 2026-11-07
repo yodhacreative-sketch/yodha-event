@@ -249,16 +249,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [partyForm, setPartyForm] = useState<PartyConfig>(partyConfig);
   const [driveForm, setDriveForm] = useState<DriveConfig>(driveConfig);
   const [boothForm, setBoothForm] = useState<BoothSettings>(boothSettings);
-  const [slotsWeddingForm, setSlotsWeddingForm] = useState<FrameSlot[]>(frameSlots);
-  const [slotsPartyForm, setSlotsPartyForm] = useState<FrameSlot[]>(partyFrameSlots);
+  const [slotsWeddingForm, setSlotsWeddingForm] = useState<FrameSlot[]>(frameSlots || []);
+  const [slotsPartyForm, setSlotsPartyForm] = useState<FrameSlot[]>(partyFrameSlots || []);
   const [selectedFrameThemeMode, setSelectedFrameThemeMode] = useState<ThemeMode>(
-    boothSettings.themeMode || "wedding"
+    boothSettings?.themeMode || "wedding"
   );
   const [studioTargetFrame, setStudioTargetFrame] = useState<FrameSlot | null | "new">(null);
   const [activeLayoutFilter, setActiveLayoutFilter] = useState<string>("all");
 
   const isPartyFrames = selectedFrameThemeMode === "party";
-  const slotsForm = isPartyFrames ? slotsPartyForm : slotsWeddingForm;
+  const slotsForm = (isPartyFrames ? slotsPartyForm : slotsWeddingForm) || [];
 
   const updateActiveSlots = (updated: FrameSlot[]) => {
     if (isPartyFrames) {
@@ -388,7 +388,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Check PIN
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === boothSettings.adminPin || pinInput === "1234") {
+    const correctPin = boothSettings?.adminPin || "1234";
+    if (pinInput === correctPin || pinInput === "1234") {
       setIsAuthenticated(true);
       setPinError(false);
       soundFx.playChime();
@@ -547,8 +548,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   // Layout counts for filter pills (matching yodhabooth)
   const layoutCounts = React.useMemo(() => {
+    const list = slotsForm || [];
     const counts: Record<string, number> = {
-      all: slotsForm.length,
+      all: list.length,
       "3x1": 0,
       "3x2": 0,
       "2x2": 0,
@@ -556,8 +558,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       "1x1": 0,
       "4x2": 0,
     };
-    slotsForm.forEach((s) => {
-      if (counts[s.layoutId] !== undefined) {
+    list.forEach((s) => {
+      if (s && counts[s.layoutId] !== undefined) {
         counts[s.layoutId]++;
       }
     });
@@ -565,8 +567,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   }, [slotsForm]);
 
   const filteredFrames = React.useMemo(() => {
-    if (activeLayoutFilter === "all") return slotsForm;
-    return slotsForm.filter((s) => s.layoutId === activeLayoutFilter);
+    const list = slotsForm || [];
+    if (activeLayoutFilter === "all") return list;
+    return list.filter((s) => s && s.layoutId === activeLayoutFilter);
   }, [slotsForm, activeLayoutFilter]);
 
   const filterOptions = [

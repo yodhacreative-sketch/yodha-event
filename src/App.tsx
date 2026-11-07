@@ -6,11 +6,9 @@ import { FilterScreen } from "./components/FilterScreen";
 import { ShootScreen } from "./components/ShootScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
 import { ResultScreen } from "./components/ResultScreen";
+import { AdminModal } from "./components/AdminModal";
 
-// Lazy load large editor & admin modules so the Windows 7 photobooth kiosk stays super light & fast
-const AdminModal = lazy(() =>
-  import("./components/AdminModal").then((m) => ({ default: m.AdminModal }))
-);
+// Lazy load large DIY visual editor so the Windows 7 photobooth kiosk stays super light & fast
 const ThemeStudio = lazy(() =>
   import("./components/ThemeStudio").then((m) => ({ default: m.ThemeStudio }))
 );
@@ -624,30 +622,28 @@ export const App: React.FC = () => {
         </span>
       </footer>
 
-      {/* Admin Settings Modal (Lazy Loaded only when opened) */}
+      {/* Admin Settings Modal */}
       {isAdminOpen && (
-        <Suspense fallback={null}>
-          <AdminModal
-            isOpen={isAdminOpen}
-            onClose={() => setIsAdminOpen(false)}
-            weddingConfig={weddingConfig}
-            onSaveWeddingConfig={handleSaveWedding}
-            partyConfig={partyConfig}
-            onSavePartyConfig={handleSaveParty}
-            driveConfig={driveConfig}
-            onSaveDriveConfig={handleSaveDrive}
-            boothSettings={boothSettings}
-            onSaveBoothSettings={handleSaveBooth}
-            frameSlots={frameSlots}
-            onSaveFrameSlots={handleSaveSlots}
-            partyFrameSlots={partyFrameSlots}
-            onSavePartyFrameSlots={handleSavePartySlots}
-            onOpenStudio={() => {
-              setIsAdminOpen(false);
-              setIsStudioOpen(true);
-            }}
-          />
-        </Suspense>
+        <AdminModal
+          isOpen={isAdminOpen}
+          onClose={() => setIsAdminOpen(false)}
+          weddingConfig={weddingConfig}
+          onSaveWeddingConfig={handleSaveWedding}
+          partyConfig={partyConfig}
+          onSavePartyConfig={handleSaveParty}
+          driveConfig={driveConfig}
+          onSaveDriveConfig={handleSaveDrive}
+          boothSettings={boothSettings}
+          onSaveBoothSettings={handleSaveBooth}
+          frameSlots={frameSlots}
+          onSaveFrameSlots={handleSaveSlots}
+          partyFrameSlots={partyFrameSlots}
+          onSavePartyFrameSlots={handleSavePartySlots}
+          onOpenStudio={() => {
+            setIsAdminOpen(false);
+            setIsStudioOpen(true);
+          }}
+        />
       )}
     </div>
   );
