@@ -100,8 +100,8 @@ export const ShootScreen: React.FC<ShootScreenProps> = ({
           audio: false,
           video: {
             deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
             facingMode: "user",
           },
         };

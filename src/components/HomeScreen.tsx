@@ -350,10 +350,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   if (themeMode === "party") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 relative text-center overflow-hidden">
-        {/* Soft Colorful Animated Background Ambient Rings */}
-        <div className="absolute w-[520px] h-[520px] rounded-full border border-orange-300/40 pointer-events-none animate-[pulse_4s_ease-in-out_infinite]" />
-        <div className="absolute w-[700px] h-[700px] rounded-full border border-sky-300/30 pointer-events-none" />
-        <div className="absolute w-[420px] h-[420px] rounded-full bg-gradient-to-tr from-orange-400/15 via-amber-300/10 to-sky-400/15 blur-3xl pointer-events-none" />
+        {/* Soft Colorful Background Ambient Rings (Ringan tanpa heavy blur / continuous repaint) */}
+        <div className="absolute w-[520px] h-[520px] rounded-full border border-orange-300/30 pointer-events-none" />
+        <div className="absolute w-[700px] h-[700px] rounded-full border border-sky-300/25 pointer-events-none" />
+        <div className="absolute w-[420px] h-[420px] rounded-full bg-gradient-to-tr from-orange-400/10 via-amber-300/10 to-sky-400/10 pointer-events-none" />
 
         {/* Mascot Putra (Left Side) */}
         <div className="hidden lg:block absolute left-8 bottom-4 w-40 xl:w-48 z-10 pointer-events-none drop-shadow-xl animate-fade-in hover:scale-105 transition-transform">
@@ -388,7 +388,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
           <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-[#FF7A00] px-4 py-0.5 rounded-full border-2 border-white flex items-center gap-1.5 shadow-md whitespace-nowrap">
-            <Sparkles size={12} className="text-white animate-spin" />
+            <Sparkles size={12} className="text-white" />
             <span className="text-[10px] font-black tracking-widest text-white uppercase">RAICAB V 2026</span>
           </div>
         </div>

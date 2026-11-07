@@ -2,16 +2,14 @@ import React, { useEffect, useState, lazy, Suspense } from "react";
 import { Header } from "./components/Header";
 import { HomeScreen } from "./components/HomeScreen";
 import { FrameScreen } from "./components/FrameScreen";
-import { FilterScreen } from "./components/FilterScreen";
 import { ShootScreen } from "./components/ShootScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
 import { ResultScreen } from "./components/ResultScreen";
-import { AdminModal } from "./components/AdminModal";
 
-// Canva Theme Studio di-hide sementara agar website sangat ringan & cepat di laptop booth (Backup tersimpan di Downloads)
-// const ThemeStudio = lazy(() =>
-//   import("./components/ThemeStudio").then((m) => ({ default: m.ThemeStudio }))
-// );
+// Lazy load AdminModal agar bundle utama web photobooth sangat kecil & instan di-load pengunjung
+const AdminModal = lazy(() =>
+  import("./components/AdminModal").then((m) => ({ default: m.AdminModal }))
+);
 import {
   BoothSettings,
   CustomHomeDesign,
@@ -292,11 +290,11 @@ export const App: React.FC = () => {
 
     performSync();
 
-    // Background interval to keep frames & config synced across devices
+    // Background interval to keep frames & config synced across devices (diatur 60s agar CPU tidak terbebani)
     const pollInterval = setInterval(() => {
       if (!mounted || isAdminOpenRef.current) return;
       performSync();
-    }, 12000);
+    }, 60000);
 
     const onFocus = () => {
       if (!isAdminOpenRef.current) {
@@ -579,24 +577,26 @@ export const App: React.FC = () => {
         </span>
       </footer>
 
-      {/* Admin Settings Modal */}
+      {/* Admin Settings Modal (Lazy Loaded) */}
       {isAdminOpen && (
-        <AdminModal
-          isOpen={isAdminOpen}
-          onClose={() => setIsAdminOpen(false)}
-          weddingConfig={weddingConfig}
-          onSaveWeddingConfig={handleSaveWedding}
-          partyConfig={partyConfig}
-          onSavePartyConfig={handleSaveParty}
-          driveConfig={driveConfig}
-          onSaveDriveConfig={handleSaveDrive}
-          boothSettings={boothSettings}
-          onSaveBoothSettings={handleSaveBooth}
-          frameSlots={frameSlots}
-          onSaveFrameSlots={handleSaveSlots}
-          partyFrameSlots={partyFrameSlots}
-          onSavePartyFrameSlots={handleSavePartySlots}
-        />
+        <Suspense fallback={null}>
+          <AdminModal
+            isOpen={isAdminOpen}
+            onClose={() => setIsAdminOpen(false)}
+            weddingConfig={weddingConfig}
+            onSaveWeddingConfig={handleSaveWedding}
+            partyConfig={partyConfig}
+            onSavePartyConfig={handleSaveParty}
+            driveConfig={driveConfig}
+            onSaveDriveConfig={handleSaveDrive}
+            boothSettings={boothSettings}
+            onSaveBoothSettings={handleSaveBooth}
+            frameSlots={frameSlots}
+            onSaveFrameSlots={handleSaveSlots}
+            partyFrameSlots={partyFrameSlots}
+            onSavePartyFrameSlots={handleSavePartySlots}
+          />
+        </Suspense>
       )}
     </div>
   );
