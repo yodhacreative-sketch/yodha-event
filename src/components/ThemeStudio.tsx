@@ -92,18 +92,6 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
   const [newCustomTextColor, setNewCustomTextColor] = useState<string>("#1e293b");
   const [newCustomTextBg, setNewCustomTextBg] = useState<string>("transparent");
   const [newCustomTextSize, setNewCustomTextSize] = useState<number>(20);
-  const dragRef = useRef<{
-    elementId: string;
-    startX: number;
-    startY: number;
-    startOffsetX: number;
-    startOffsetY: number;
-    isCustom?: boolean;
-    startLeftPercent?: number;
-    startTopPercent?: number;
-    canvasRect?: DOMRect;
-  } | null>(null);
-
   const resetOffset = (element: "logo" | "subtitle" | "title" | "tags" | "button") => {
     soundFx.playChime();
     if (element === "logo") updateCurrentDesign({ logoOffset: { x: 0, y: 0 } });
@@ -121,55 +109,88 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     isCustom = false,
     customElement?: CanvasElement
   ) => {
+    // Only primary button (left click) or touch
+    if (e.button !== 0 && e.pointerType === "mouse") return;
     e.stopPropagation();
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch (_) {}
+    e.preventDefault();
+
     setSelectedElement(elementId);
     soundFx.playPop();
 
     const canvas = document.getElementById("canva-preview-canvas");
-    const canvasRect = canvas ? canvas.getBoundingClientRect() : undefined;
+    const canvasRect = canvas ? canvas.getBoundingClientRect() : null;
+    if (!canvasRect) return;
 
-    dragRef.current = {
-      elementId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startOffsetX: currentOffset.x,
-      startOffsetY: currentOffset.y,
-      isCustom,
-      startLeftPercent: customElement?.x ?? 50,
-      startTopPercent: customElement?.y ?? 50,
-      canvasRect,
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startOffsetX = currentOffset.x;
+    const startOffsetY = currentOffset.y;
+    const startLeftPercent = customElement?.x ?? 50;
+    const startTopPercent = customElement?.y ?? 50;
+
+    let hasMoved = false;
+
+    const onPointerMove = (moveEv: PointerEvent) => {
+      hasMoved = true;
+      const deltaX = moveEv.clientX - startX;
+      const deltaY = moveEv.clientY - startY;
+
+      if (isCustom) {
+        const pctX = (deltaX / canvasRect.width) * 100;
+        const pctY = (deltaY / canvasRect.height) * 100;
+        const newX = Math.max(2, Math.min(98, Math.round((startLeftPercent + pctX) * 10) / 10));
+        const newY = Math.max(2, Math.min(98, Math.round((startTopPercent + pctY) * 10) / 10));
+
+        setDesigns((prev) =>
+          prev.map((item) =>
+            item.id === currentDesign.id
+              ? {
+                  ...item,
+                  customElements: (item.customElements || []).map((el) =>
+                    el.id === elementId ? { ...el, x: newX, y: newY } : el
+                  ),
+                }
+              : item
+          )
+        );
+      } else {
+        const newOffsetX = Math.round(startOffsetX + deltaX);
+        const newOffsetY = Math.round(startOffsetY + deltaY);
+
+        setDesigns((prev) =>
+          prev.map((item) =>
+            item.id === currentDesign.id
+              ? {
+                  ...item,
+                  ...(elementId === "logo" && { logoOffset: { x: newOffsetX, y: newOffsetY } }),
+                  ...(elementId === "subtitle" && { subtitleOffset: { x: newOffsetX, y: newOffsetY } }),
+                  ...(elementId === "title" && { titleOffset: { x: newOffsetX, y: newOffsetY } }),
+                  ...(elementId === "tags" && { tagsOffset: { x: newOffsetX, y: newOffsetY } }),
+                  ...(elementId === "button" && { buttonOffset: { x: newOffsetX, y: newOffsetY } }),
+                }
+              : item
+          )
+        );
+      }
     };
-  };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    const { elementId, startX, startY, startOffsetX, startOffsetY, isCustom, startLeftPercent, startTopPercent, canvasRect } = dragRef.current;
-    const deltaX = e.clientX - startX;
-    const deltaY = e.clientY - startY;
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
 
-    if (isCustom && canvasRect) {
-      const pctX = (deltaX / canvasRect.width) * 100;
-      const pctY = (deltaY / canvasRect.height) * 100;
-      const newX = Math.max(2, Math.min(98, Math.round(((startLeftPercent || 50) + pctX) * 10) / 10));
-      const newY = Math.max(2, Math.min(98, Math.round(((startTopPercent || 50) + pctY) * 10) / 10));
-      updateCustomElement(elementId, { x: newX, y: newY });
-    } else {
-      const newOffsetX = Math.round(startOffsetX + deltaX);
-      const newOffsetY = Math.round(startOffsetY + deltaY);
+      if (hasMoved) {
+        setDesigns((prev) => {
+          saveCustomDesigns(prev);
+          pushToServer({ customDesigns: prev, activeDesignId: activeId }).catch(() => {});
+          return prev;
+        });
+      }
+    };
 
-      if (elementId === "logo") updateCurrentDesign({ logoOffset: { x: newOffsetX, y: newOffsetY } });
-      if (elementId === "subtitle") updateCurrentDesign({ subtitleOffset: { x: newOffsetX, y: newOffsetY } });
-      if (elementId === "title") updateCurrentDesign({ titleOffset: { x: newOffsetX, y: newOffsetY } });
-      if (elementId === "tags") updateCurrentDesign({ tagsOffset: { x: newOffsetX, y: newOffsetY } });
-      if (elementId === "button") updateCurrentDesign({ buttonOffset: { x: newOffsetX, y: newOffsetY } });
-    }
-  };
-
-  const handlePointerUp = () => {
-    dragRef.current = null;
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
   };
 
   // Add / Edit / Remove Custom Canva Elements
@@ -393,9 +414,6 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     return (
       <div
         id="canva-preview-canvas"
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
         onClick={() => setSelectedElement(null)}
         className="w-full h-full min-h-[480px] sm:min-h-[580px] flex flex-col justify-between items-center relative overflow-hidden select-none transition-all shadow-2xl rounded-2xl border border-white/20"
         style={bgStyle}
