@@ -21,6 +21,7 @@ import {
   PartyPopper,
   Sparkles,
   Paintbrush,
+  ExternalLink,
 } from "lucide-react";
 import {
   BoothSettings,
@@ -856,19 +857,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 <span>Riwayat Sesi</span>
               </button>
 
-              {onOpenStudio && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundFx.playChime();
-                    onOpenStudio();
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 text-white shadow-md hover:from-purple-500 hover:to-cyan-500 ml-auto"
-                >
-                  <Paintbrush size={14} />
-                  <span>🎨 Buka DIY Theme Studio</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playChime();
+                  const studioUrl = `${window.location.origin}/studio`;
+                  window.open(studioUrl, "_blank") || (window.location.href = studioUrl);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 text-white shadow-md hover:from-purple-500 hover:to-cyan-500 ml-auto"
+                title="Langsung buka Theme Studio di halaman/tab baru"
+              >
+                <Paintbrush size={14} />
+                <span>🎨 Buka DIY Theme Studio</span>
+                <ExternalLink size={13} className="opacity-80" />
+              </button>
             </div>
 
             {/* Tab Contents Container */}
@@ -876,43 +878,43 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               {/* Tab 1: Wedding Config */}
               {activeTab === "wedding" && (
                 <div className="space-y-4 max-w-2xl">
-                  {onOpenStudio && (
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900/30 via-indigo-900/30 to-cyan-900/30 border border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center text-white shrink-0 shadow">
-                          <Paintbrush size={18} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-white">Visual Theme Studio (DIY)</h4>
-                          <p className="text-xs text-stone-300">Kustomisasi tata letak, logo, foto latar, gradien & tombol secara live</p>
-                        </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900/30 via-indigo-900/30 to-cyan-900/30 border border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center text-white shrink-0 shadow">
+                        <Paintbrush size={18} />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const url = `${window.location.origin}/studio`;
-                            navigator.clipboard?.writeText(url);
-                            showToast("✓ Link Web Studio disalin! Buka di HP / Laptop lain agar Windows 7 tetap ringan.");
-                          }}
-                          className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer whitespace-nowrap"
-                          title="Buka editor ini di HP atau laptop lain agar laptop booth Windows 7 tetap ringan"
-                        >
-                          🔗 Salin Link HP
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            soundFx.playChime();
-                            onOpenStudio();
-                          }}
-                          className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95"
-                        >
-                          Buka di Sini
-                        </button>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Visual Theme Studio (DIY)</h4>
+                        <p className="text-xs text-stone-300">Kustomisasi tata letak, logo, foto latar, gradien & tombol secara live</p>
                       </div>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${window.location.origin}/studio`;
+                          navigator.clipboard?.writeText(url);
+                          showToast("✓ Link Web Studio disalin! Buka di HP / Laptop lain agar Windows 7 tetap ringan.");
+                        }}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer whitespace-nowrap"
+                        title="Buka editor ini di HP atau laptop lain agar laptop booth Windows 7 tetap ringan"
+                      >
+                        🔗 Salin Link HP
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundFx.playChime();
+                          const studioUrl = `${window.location.origin}/studio`;
+                          window.open(studioUrl, "_blank") || (window.location.href = studioUrl);
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95 flex items-center gap-1.5"
+                      >
+                        <span>Buka Link Studio</span>
+                        <ExternalLink size={13} />
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-amber-200 mb-1">
@@ -1028,11 +1030,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           type="button"
                           onClick={() => {
                             soundFx.playChime();
-                            onOpenStudio();
+                            const studioUrl = `${window.location.origin}/studio`;
+                            window.open(studioUrl, "_blank") || (window.location.href = studioUrl);
                           }}
-                          className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95"
+                          className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95 flex items-center gap-1.5"
                         >
-                          Buka di Sini
+                          <span>Buka Link Studio</span>
+                          <ExternalLink size={13} />
                         </button>
                       </div>
                     </div>

@@ -2297,3 +2297,5 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
   );
 };
 
+export default ThemeStudio;
+
