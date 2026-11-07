@@ -117,7 +117,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Center Logo / Badge */}
           {d.showLogo && (
-            <div className="relative mb-6 z-10">
+            <div
+              className="relative mb-6 z-10 transition-transform duration-75"
+              style={{
+                transform: `translate(${d.logoOffset?.x || 0}px, ${d.logoOffset?.y || 0}px)`,
+              }}
+            >
               <div
                 className={`overflow-hidden flex items-center justify-center shadow-lg transition-transform hover:scale-105 ${
                   d.logoShape === "circle"
@@ -170,7 +175,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Subtitle Pill */}
           {d.showSubtitle && d.subtitleText && (
-            <div className="flex items-center gap-3 mb-2 z-10 max-w-full">
+            <div
+              className="flex items-center gap-3 mb-2 z-10 max-w-full transition-transform duration-75"
+              style={{
+                transform: `translate(${d.subtitleOffset?.x || 0}px, ${d.subtitleOffset?.y || 0}px)`,
+              }}
+            >
               <div
                 className="w-8 sm:w-12 h-[2px]"
                 style={{
@@ -198,9 +208,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Main Title Heading */}
           <h1
-            className={`${getFontFamilyClass()} ${getTitleSizeClass()} font-black py-2 px-6 my-1 drop-shadow-sm leading-tight tracking-tight z-10 max-w-full overflow-visible break-words`}
-            style={
-              d.titleColorType === "gradient" && d.titleGradient
+            className={`${getFontFamilyClass()} ${getTitleSizeClass()} font-black py-2 px-6 my-1 drop-shadow-sm leading-tight tracking-tight z-10 max-w-full overflow-visible break-words transition-transform duration-75`}
+            style={{
+              ...(d.titleColorType === "gradient" && d.titleGradient
                 ? {
                     background: d.titleGradient,
                     WebkitBackgroundClip: "text",
@@ -208,14 +218,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   }
                 : {
                     color: d.titleColor || "#1e293b",
-                  }
-            }
+                  }),
+              transform: `translate(${d.titleOffset?.x || 0}px, ${d.titleOffset?.y || 0}px)`,
+            }}
           >
             {d.titleText}
           </h1>
 
           {/* Date & Hashtag Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm tracking-wider font-bold mt-2 mb-10 z-10">
+          <div
+            className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm tracking-wider font-bold mt-2 mb-10 z-10 transition-transform duration-75"
+            style={{
+              transform: `translate(${d.tagsOffset?.x || 0}px, ${d.tagsOffset?.y || 0}px)`,
+            }}
+          >
             {d.showDateTag && d.dateText && (
               <span
                 className="px-4 py-1.5 rounded-full border shadow-sm"
@@ -246,23 +262,79 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
           {/* CTA Start Button */}
-          <button
-            onClick={handleStartClick}
-            className={`px-10 py-4 sm:px-16 sm:py-5 flex items-center justify-center gap-3 text-base sm:text-lg font-bold group cursor-pointer transition-all active:scale-95 z-10 ${getButtonShapeClass()}`}
+          <div
+            className="z-10 transition-transform duration-75"
             style={{
-              background:
-                d.buttonBgType === "gradient" && d.buttonBgGradient
-                  ? d.buttonBgGradient
-                  : d.buttonBgColor || "#EF5000",
-              color: d.buttonTextColor || "#ffffff",
-              boxShadow: d.buttonShadow
-                ? `0 10px 30px ${d.buttonShadowColor || "rgba(0,0,0,0.3)"}`
-                : undefined,
+              transform: `translate(${d.buttonOffset?.x || 0}px, ${d.buttonOffset?.y || 0}px)`,
             }}
           >
-            {renderIcon()}
-            <span>{d.buttonText || "Sentuh Layar untuk Mulai"}</span>
-          </button>
+            <button
+              onClick={handleStartClick}
+              className={`px-10 py-4 sm:px-16 sm:py-5 flex items-center justify-center gap-3 text-base sm:text-lg font-bold group cursor-pointer transition-all active:scale-95 ${getButtonShapeClass()}`}
+              style={{
+                background:
+                  d.buttonBgType === "gradient" && d.buttonBgGradient
+                    ? d.buttonBgGradient
+                    : d.buttonBgColor || "#EF5000",
+                color: d.buttonTextColor || "#ffffff",
+                boxShadow: d.buttonShadow
+                  ? `0 10px 30px ${d.buttonShadowColor || "rgba(0,0,0,0.3)"}`
+                  : undefined,
+              }}
+            >
+              {renderIcon()}
+              <span>{d.buttonText || "Sentuh Layar untuk Mulai"}</span>
+            </button>
+          </div>
+
+          {/* Custom Freeform Canva Elements (Stickers, Images, Additional Texts) */}
+          {d.customElements &&
+            d.customElements.map((el) => {
+              const elStyle: React.CSSProperties = {
+                position: "absolute",
+                left: `${el.x}%`,
+                top: `${el.y}%`,
+                transform: `translate(-50%, -50%) rotate(${el.rotation || 0}deg)`,
+                zIndex: el.zIndex || 15,
+              };
+
+              if (el.type === "image" || el.type === "sticker") {
+                return (
+                  <div key={el.id} style={elStyle} className="pointer-events-none drop-shadow-lg">
+                    <img
+                      src={el.content}
+                      alt={el.name || "Sticker"}
+                      style={{
+                        width: el.width ? `${el.width}px` : "130px",
+                        height: el.height ? `${el.height}px` : "auto",
+                        objectFit: "contain",
+                      }}
+                    />
+                  </div>
+                );
+              }
+
+              if (el.type === "text") {
+                return (
+                  <div
+                    key={el.id}
+                    style={{
+                      ...elStyle,
+                      color: el.color || "#1e293b",
+                      fontSize: el.fontSize ? `${el.fontSize}px` : "16px",
+                      fontWeight: el.fontWeight || "bold",
+                      backgroundColor: el.backgroundColor || "transparent",
+                      borderRadius: el.borderRadius ? `${el.borderRadius}px` : undefined,
+                      padding: el.backgroundColor ? "4px 12px" : undefined,
+                    }}
+                    className="pointer-events-none drop-shadow select-none whitespace-pre-wrap"
+                  >
+                    {el.content}
+                  </div>
+                );
+              }
+              return null;
+            })}
         </div>
       );
     }

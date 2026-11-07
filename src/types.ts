@@ -138,12 +138,39 @@ export interface SavedSession {
   driveUploadStatus: "success" | "error" | "pending" | "none";
 }
 
+export interface CanvasElement {
+  id: string;
+  type: "image" | "text" | "sticker";
+  name?: string;
+  x: number; // percentage (0 - 100) or px offset
+  y: number; // percentage (0 - 100) or px offset
+  width?: number; // px
+  height?: number; // px
+  content: string; // image url / base64 or text content
+  color?: string;
+  fontSize?: number; // px
+  fontWeight?: string;
+  fontFamily?: "sans" | "serif" | "script" | "cinzel" | "mono";
+  backgroundColor?: string;
+  borderRadius?: number;
+  rotation?: number; // degrees
+  zIndex?: number;
+}
+
 export interface CustomHomeDesign {
   id: string;
   name: string; // e.g. "RAICAB BANJAR V" or "Wedding Sarah & Kevin"
   isActive?: boolean;
   createdAt?: number;
   updatedAt?: number;
+
+  // Freeform Canva drag & drop offsets (in px)
+  logoOffset?: { x: number; y: number };
+  subtitleOffset?: { x: number; y: number };
+  titleOffset?: { x: number; y: number };
+  tagsOffset?: { x: number; y: number };
+  buttonOffset?: { x: number; y: number };
+  customElements?: CanvasElement[];
 
   // Background
   bgType: "color" | "gradient" | "image";

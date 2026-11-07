@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Save,
@@ -22,8 +22,12 @@ import {
   ExternalLink,
   Sliders,
   Eye,
+  Move,
+  Upload,
+  RotateCcw,
+  Layers,
 } from "lucide-react";
-import { CustomHomeDesign, DriveConfig } from "../types";
+import { CanvasElement, CustomHomeDesign, DriveConfig } from "../types";
 import { DEFAULT_CUSTOM_DESIGNS } from "../config";
 import {
   saveCustomDesigns,
@@ -42,7 +46,7 @@ interface ThemeStudioProps {
   driveConfig: DriveConfig;
 }
 
-type StudioTab = "background" | "logo" | "typography" | "button" | "cloud" | "designs";
+type StudioTab = "background" | "logo" | "typography" | "button" | "elements" | "designs" | "cloud";
 
 export const ThemeStudio: React.FC<ThemeStudioProps> = ({
   onBackToKiosk,
@@ -80,6 +84,120 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
       pushToServer({ customDesigns: updated, activeDesignId: activeId }).catch(() => {});
       return updated;
     });
+  };
+
+  // Canva Drag & Drop State
+  const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [newCustomText, setNewCustomText] = useState<string>("");
+  const [newCustomTextColor, setNewCustomTextColor] = useState<string>("#1e293b");
+  const [newCustomTextBg, setNewCustomTextBg] = useState<string>("transparent");
+  const [newCustomTextSize, setNewCustomTextSize] = useState<number>(20);
+  const dragRef = useRef<{
+    elementId: string;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    isCustom?: boolean;
+    startLeftPercent?: number;
+    startTopPercent?: number;
+    canvasRect?: DOMRect;
+  } | null>(null);
+
+  const resetOffset = (element: "logo" | "subtitle" | "title" | "tags" | "button") => {
+    soundFx.playChime();
+    if (element === "logo") updateCurrentDesign({ logoOffset: { x: 0, y: 0 } });
+    if (element === "subtitle") updateCurrentDesign({ subtitleOffset: { x: 0, y: 0 } });
+    if (element === "title") updateCurrentDesign({ titleOffset: { x: 0, y: 0 } });
+    if (element === "tags") updateCurrentDesign({ tagsOffset: { x: 0, y: 0 } });
+    if (element === "button") updateCurrentDesign({ buttonOffset: { x: 0, y: 0 } });
+    showToast(`✓ Posisi ${element} dikembalikan ke tengah.`);
+  };
+
+  const handlePointerDown = (
+    e: React.PointerEvent,
+    elementId: string,
+    currentOffset: { x: number; y: number } = { x: 0, y: 0 },
+    isCustom = false,
+    customElement?: CanvasElement
+  ) => {
+    e.stopPropagation();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (_) {}
+    setSelectedElement(elementId);
+    soundFx.playPop();
+
+    const canvas = document.getElementById("canva-preview-canvas");
+    const canvasRect = canvas ? canvas.getBoundingClientRect() : undefined;
+
+    dragRef.current = {
+      elementId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffsetX: currentOffset.x,
+      startOffsetY: currentOffset.y,
+      isCustom,
+      startLeftPercent: customElement?.x ?? 50,
+      startTopPercent: customElement?.y ?? 50,
+      canvasRect,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const { elementId, startX, startY, startOffsetX, startOffsetY, isCustom, startLeftPercent, startTopPercent, canvasRect } = dragRef.current;
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+
+    if (isCustom && canvasRect) {
+      const pctX = (deltaX / canvasRect.width) * 100;
+      const pctY = (deltaY / canvasRect.height) * 100;
+      const newX = Math.max(2, Math.min(98, Math.round(((startLeftPercent || 50) + pctX) * 10) / 10));
+      const newY = Math.max(2, Math.min(98, Math.round(((startTopPercent || 50) + pctY) * 10) / 10));
+      updateCustomElement(elementId, { x: newX, y: newY });
+    } else {
+      const newOffsetX = Math.round(startOffsetX + deltaX);
+      const newOffsetY = Math.round(startOffsetY + deltaY);
+
+      if (elementId === "logo") updateCurrentDesign({ logoOffset: { x: newOffsetX, y: newOffsetY } });
+      if (elementId === "subtitle") updateCurrentDesign({ subtitleOffset: { x: newOffsetX, y: newOffsetY } });
+      if (elementId === "title") updateCurrentDesign({ titleOffset: { x: newOffsetX, y: newOffsetY } });
+      if (elementId === "tags") updateCurrentDesign({ tagsOffset: { x: newOffsetX, y: newOffsetY } });
+      if (elementId === "button") updateCurrentDesign({ buttonOffset: { x: newOffsetX, y: newOffsetY } });
+    }
+  };
+
+  const handlePointerUp = () => {
+    dragRef.current = null;
+  };
+
+  // Add / Edit / Remove Custom Canva Elements
+  const addCustomElement = (element: Omit<CanvasElement, "id">) => {
+    const newElement: CanvasElement = {
+      ...element,
+      id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    };
+    const currentList = currentDesign.customElements || [];
+    const updated = [...currentList, newElement];
+    updateCurrentDesign({ customElements: updated });
+    setSelectedElement(newElement.id);
+    showToast(`✓ Berhasil menambahkan ${newElement.name || "elemen"} ke kanvas!`);
+    soundFx.playChime();
+  };
+
+  const updateCustomElement = (id: string, patch: Partial<CanvasElement>) => {
+    const currentList = currentDesign.customElements || [];
+    const updated = currentList.map((el) => (el.id === id ? { ...el, ...patch } : el));
+    updateCurrentDesign({ customElements: updated });
+  };
+
+  const deleteCustomElement = (id: string) => {
+    const currentList = currentDesign.customElements || [];
+    const updated = currentList.filter((el) => el.id !== id);
+    updateCurrentDesign({ customElements: updated });
+    if (selectedElement === id) setSelectedElement(null);
+    showToast("Elemen berhasil dihapus dari kanvas.");
   };
 
   // Activate / Publish this design as the live photobooth display
@@ -274,6 +392,11 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
 
     return (
       <div
+        id="canva-preview-canvas"
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onClick={() => setSelectedElement(null)}
         className="w-full h-full min-h-[480px] sm:min-h-[580px] flex flex-col justify-between items-center relative overflow-hidden select-none transition-all shadow-2xl rounded-2xl border border-white/20"
         style={bgStyle}
       >
@@ -302,6 +425,12 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           </>
         )}
 
+        {/* Canva Mode Hint Badge at Top */}
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none bg-blue-600/90 backdrop-blur-md text-white text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 flex items-center gap-1.5 opacity-90">
+          <Move size={12} className="animate-pulse text-amber-300" />
+          <span>Mode Canva: Klik & geser elemen langsung di layar ini</span>
+        </div>
+
         {/* Mock Top Header Bar */}
         <div className="w-full px-4 py-2.5 flex items-center justify-between border-b border-white/10 bg-black/10 backdrop-blur-sm z-20 shrink-0">
           <div className="flex items-center gap-2">
@@ -327,12 +456,51 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
         </div>
 
         {/* Center Content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center z-10 w-full max-w-4xl">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center z-10 w-full max-w-4xl relative">
           {/* Logo / Badge */}
           {d.showLogo && (
-            <div className="relative mb-4 z-10">
+            <div
+              onPointerDown={(e) => handlePointerDown(e, "logo", d.logoOffset || { x: 0, y: 0 })}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedElement("logo");
+              }}
+              className={`relative mb-4 z-20 cursor-grab active:cursor-grabbing transition-shadow ${
+                selectedElement === "logo"
+                  ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-black/40 rounded-2xl shadow-2xl"
+                  : "hover:ring-1 hover:ring-blue-400/60 rounded-2xl"
+              }`}
+              style={{
+                transform: `translate(${d.logoOffset?.x || 0}px, ${d.logoOffset?.y || 0}px)`,
+                touchAction: "none",
+              }}
+            >
+              {selectedElement === "logo" && (
+                <>
+                  <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg flex items-center gap-1 whitespace-nowrap z-40">
+                    <span>Logo ({d.logoOffset?.x || 0}, {d.logoOffset?.y || 0})</span>
+                    {((d.logoOffset?.x || 0) !== 0 || (d.logoOffset?.y || 0) !== 0) && (
+                      <button
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          resetOffset("logo");
+                        }}
+                        className="ml-1 text-amber-200 hover:text-white underline text-[9px] cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
               <div
-                className={`overflow-hidden flex items-center justify-center shadow-lg transition-transform hover:scale-105 ${
+                className={`overflow-hidden flex items-center justify-center shadow-lg transition-transform ${
                   d.logoShape === "circle"
                     ? "rounded-full"
                     : d.logoShape === "rounded"
@@ -354,7 +522,8 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                   <img
                     src={d.logoUrl}
                     alt="Logo"
-                    className="w-full h-full object-contain p-2"
+                    draggable={false}
+                    className="w-full h-full object-contain p-2 pointer-events-none"
                   />
                 ) : (
                   <Sparkles size={36} className="text-amber-500" />
@@ -364,7 +533,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
               {/* Logo Badge Underneath */}
               {d.logoBadgeText && (
                 <div
-                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full flex items-center gap-1 shadow-md border whitespace-nowrap"
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full flex items-center gap-1 shadow-md border whitespace-nowrap pointer-events-none"
                   style={{
                     backgroundColor: d.logoBadgeBgColor || "#2E0E4C",
                     borderColor: d.logoBorderColor || "#F9B708",
@@ -382,7 +551,46 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
 
           {/* Subtitle Pill */}
           {d.showSubtitle && d.subtitleText && (
-            <div className="flex items-center gap-2 mb-2 z-10 max-w-full">
+            <div
+              onPointerDown={(e) => handlePointerDown(e, "subtitle", d.subtitleOffset || { x: 0, y: 0 })}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedElement("subtitle");
+              }}
+              className={`relative mb-2 z-20 max-w-full cursor-grab active:cursor-grabbing transition-shadow flex items-center gap-2 ${
+                selectedElement === "subtitle"
+                  ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-black/40 rounded-full shadow-2xl p-0.5"
+                  : "hover:ring-1 hover:ring-blue-400/60 rounded-full"
+              }`}
+              style={{
+                transform: `translate(${d.subtitleOffset?.x || 0}px, ${d.subtitleOffset?.y || 0}px)`,
+                touchAction: "none",
+              }}
+            >
+              {selectedElement === "subtitle" && (
+                <>
+                  <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg flex items-center gap-1 whitespace-nowrap z-40">
+                    <span>Subtitle ({d.subtitleOffset?.x || 0}, {d.subtitleOffset?.y || 0})</span>
+                    {((d.subtitleOffset?.x || 0) !== 0 || (d.subtitleOffset?.y || 0) !== 0) && (
+                      <button
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          resetOffset("subtitle");
+                        }}
+                        className="ml-1 text-amber-200 hover:text-white underline text-[9px] cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
               <div
                 className="w-6 sm:w-10 h-[2px]"
                 style={{
@@ -409,28 +617,108 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           )}
 
           {/* Main Title Heading */}
-          <h1
-            className={`${getFontFamilyClass()} ${getTitleSizeClass()} font-black py-1 px-4 my-1 drop-shadow-sm leading-tight tracking-tight z-10 max-w-full overflow-visible break-words`}
-            style={
-              d.titleColorType === "gradient" && d.titleGradient
-                ? {
-                    background: d.titleGradient,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }
-                : {
-                    color: d.titleColor || "#1e293b",
-                  }
-            }
+          <div
+            onPointerDown={(e) => handlePointerDown(e, "title", d.titleOffset || { x: 0, y: 0 })}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedElement("title");
+            }}
+            className={`relative my-1 z-20 max-w-full cursor-grab active:cursor-grabbing transition-shadow ${
+              selectedElement === "title"
+                ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-black/40 rounded-2xl shadow-2xl"
+                : "hover:ring-1 hover:ring-blue-400/60 rounded-2xl"
+            }`}
+            style={{
+              transform: `translate(${d.titleOffset?.x || 0}px, ${d.titleOffset?.y || 0}px)`,
+              touchAction: "none",
+            }}
           >
-            {d.titleText}
-          </h1>
+            {selectedElement === "title" && (
+              <>
+                <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg flex items-center gap-1 whitespace-nowrap z-40">
+                  <span>Judul ({d.titleOffset?.x || 0}, {d.titleOffset?.y || 0})</span>
+                  {((d.titleOffset?.x || 0) !== 0 || (d.titleOffset?.y || 0) !== 0) && (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetOffset("title");
+                      }}
+                      className="ml-1 text-amber-200 hover:text-white underline text-[9px] cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            <h1
+              className={`${getFontFamilyClass()} ${getTitleSizeClass()} font-black py-1 px-4 drop-shadow-sm leading-tight tracking-tight overflow-visible break-words select-none`}
+              style={
+                d.titleColorType === "gradient" && d.titleGradient
+                  ? {
+                      background: d.titleGradient,
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }
+                  : {
+                      color: d.titleColor || "#1e293b",
+                    }
+              }
+            >
+              {d.titleText}
+            </h1>
+          </div>
 
           {/* Date & Hashtag Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 text-xs tracking-wider font-bold mt-2 mb-8 z-10">
+          <div
+            onPointerDown={(e) => handlePointerDown(e, "tags", d.tagsOffset || { x: 0, y: 0 })}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedElement("tags");
+            }}
+            className={`relative mt-2 mb-8 z-20 cursor-grab active:cursor-grabbing transition-shadow flex flex-wrap items-center justify-center gap-2 ${
+              selectedElement === "tags"
+                ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-black/40 rounded-full shadow-2xl p-1"
+                : "hover:ring-1 hover:ring-blue-400/60 rounded-full p-1"
+            }`}
+            style={{
+              transform: `translate(${d.tagsOffset?.x || 0}px, ${d.tagsOffset?.y || 0}px)`,
+              touchAction: "none",
+            }}
+          >
+            {selectedElement === "tags" && (
+              <>
+                <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg flex items-center gap-1 whitespace-nowrap z-40">
+                  <span>Tags ({d.tagsOffset?.x || 0}, {d.tagsOffset?.y || 0})</span>
+                  {((d.tagsOffset?.x || 0) !== 0 || (d.tagsOffset?.y || 0) !== 0) && (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetOffset("tags");
+                      }}
+                      className="ml-1 text-amber-200 hover:text-white underline text-[9px] cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
             {d.showDateTag && d.dateText && (
               <span
-                className="px-3.5 py-1 rounded-full border shadow-sm"
+                className="px-3.5 py-1 rounded-full border shadow-sm text-xs font-bold"
                 style={{
                   backgroundColor: d.dateBgColor || "#ffffff",
                   color: d.dateTextColor || "#0094B4",
@@ -445,7 +733,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             )}
             {d.showHashtagTag && d.hashtagText && (
               <span
-                className="px-3.5 py-1 rounded-full border shadow-sm"
+                className="px-3.5 py-1 rounded-full border shadow-sm text-xs font-bold"
                 style={{
                   backgroundColor: d.hashtagBgColor || "#ffffff",
                   color: d.hashtagTextColor || "#622599",
@@ -458,24 +746,213 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           </div>
 
           {/* Start CTA Button */}
-          <button
-            onClick={() => soundFx.playChime()}
-            className={`px-8 py-3.5 sm:px-12 sm:py-4 flex items-center justify-center gap-2.5 text-base font-bold group cursor-pointer transition-transform hover:scale-105 active:scale-95 z-10 ${getButtonShapeClass()}`}
+          <div
+            onPointerDown={(e) => handlePointerDown(e, "button", d.buttonOffset || { x: 0, y: 0 })}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedElement("button");
+            }}
+            className={`relative z-20 cursor-grab active:cursor-grabbing transition-shadow ${
+              selectedElement === "button"
+                ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-black/40 rounded-full shadow-2xl p-0.5"
+                : "hover:ring-1 hover:ring-blue-400/60 rounded-full"
+            }`}
             style={{
-              background:
-                d.buttonBgType === "gradient" && d.buttonBgGradient
-                  ? d.buttonBgGradient
-                  : d.buttonBgColor || "#EF5000",
-              color: d.buttonTextColor || "#ffffff",
-              boxShadow: d.buttonShadow
-                ? `0 8px 25px ${d.buttonShadowColor || "rgba(0,0,0,0.3)"}`
-                : undefined,
+              transform: `translate(${d.buttonOffset?.x || 0}px, ${d.buttonOffset?.y || 0}px)`,
+              touchAction: "none",
             }}
           >
-            {renderIcon()}
-            <span>{d.buttonText || "Sentuh Layar untuk Mulai"}</span>
-          </button>
+            {selectedElement === "button" && (
+              <>
+                <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg flex items-center gap-1 whitespace-nowrap z-40">
+                  <span>Tombol ({d.buttonOffset?.x || 0}, {d.buttonOffset?.y || 0})</span>
+                  {((d.buttonOffset?.x || 0) !== 0 || (d.buttonOffset?.y || 0) !== 0) && (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetOffset("button");
+                      }}
+                      className="ml-1 text-amber-200 hover:text-white underline text-[9px] cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            <button
+              onClick={() => soundFx.playChime()}
+              className={`px-8 py-3.5 sm:px-12 sm:py-4 flex items-center justify-center gap-2.5 text-base font-bold group transition-transform ${getButtonShapeClass()}`}
+              style={{
+                background:
+                  d.buttonBgType === "gradient" && d.buttonBgGradient
+                    ? d.buttonBgGradient
+                    : d.buttonBgColor || "#EF5000",
+                color: d.buttonTextColor || "#ffffff",
+                boxShadow: d.buttonShadow
+                  ? `0 8px 25px ${d.buttonShadowColor || "rgba(0,0,0,0.3)"}`
+                  : undefined,
+              }}
+            >
+              {renderIcon()}
+              <span>{d.buttonText || "Sentuh Layar untuk Mulai"}</span>
+            </button>
+          </div>
         </div>
+
+        {/* Freeform Canva Draggable Custom Elements */}
+        {d.customElements &&
+          d.customElements.map((el) => {
+            const isSelected = selectedElement === el.id;
+            return (
+              <div
+                key={el.id}
+                onPointerDown={(e) => handlePointerDown(e, el.id, { x: 0, y: 0 }, true, el)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedElement(el.id);
+                }}
+                style={{
+                  position: "absolute",
+                  left: `${el.x}%`,
+                  top: `${el.y}%`,
+                  transform: `translate(-50%, -50%) rotate(${el.rotation || 0}deg)`,
+                  zIndex: el.zIndex || 25,
+                  touchAction: "none",
+                }}
+                className={`cursor-grab active:cursor-grabbing select-none transition-shadow ${
+                  isSelected
+                    ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-transparent shadow-2xl rounded-lg"
+                    : "hover:ring-1 hover:ring-blue-400/60 rounded-lg"
+                }`}
+              >
+                {isSelected && (
+                  <>
+                    <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                    <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                    <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+                    <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-30 pointer-events-none" />
+
+                    {/* Mini Canva Toolbar */}
+                    <div
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="absolute -top-10 left-1/2 -translate-x-1/2 bg-stone-900/95 backdrop-blur-md text-white text-[11px] font-semibold px-2.5 py-1 rounded-xl border border-white/20 shadow-2xl flex items-center gap-1.5 whitespace-nowrap z-40"
+                    >
+                      <span className="text-[10px] text-blue-300 font-mono truncate max-w-[80px]">
+                        {el.name || (el.type === "text" ? el.content : "Objek")}
+                      </span>
+                      <div className="h-3 w-px bg-white/20" />
+                      {el.type !== "text" ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              updateCustomElement(el.id, {
+                                width: Math.max(40, (el.width || 120) - 20),
+                              })
+                            }
+                            className="px-1.5 py-0.5 hover:bg-stone-700 rounded text-stone-200 text-xs font-bold"
+                            title="Perkecil"
+                          >
+                            -
+                          </button>
+                          <button
+                            onClick={() =>
+                              updateCustomElement(el.id, {
+                                width: Math.min(400, (el.width || 120) + 20),
+                              })
+                            }
+                            className="px-1.5 py-0.5 hover:bg-stone-700 rounded text-stone-200 text-xs font-bold"
+                            title="Perbesar"
+                          >
+                            +
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() =>
+                              updateCustomElement(el.id, {
+                                fontSize: Math.max(10, (el.fontSize || 16) - 2),
+                              })
+                            }
+                            className="px-1.5 py-0.5 hover:bg-stone-700 rounded text-stone-200 text-xs font-bold"
+                            title="Perkecil Font"
+                          >
+                            A-
+                          </button>
+                          <button
+                            onClick={() =>
+                              updateCustomElement(el.id, {
+                                fontSize: Math.min(60, (el.fontSize || 16) + 2),
+                              })
+                            }
+                            className="px-1.5 py-0.5 hover:bg-stone-700 rounded text-stone-200 text-xs font-bold"
+                            title="Perbesar Font"
+                          >
+                            A+
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() =>
+                          updateCustomElement(el.id, {
+                            rotation: ((el.rotation || 0) + 15) % 360,
+                          })
+                        }
+                        className="p-1 hover:bg-stone-700 rounded text-stone-300 hover:text-white"
+                        title="Putar 15°"
+                      >
+                        <RotateCcw size={12} className="rotate-180" />
+                      </button>
+                      <button
+                        onClick={() => deleteCustomElement(el.id)}
+                        className="p-1 hover:bg-red-600 rounded text-red-300 hover:text-white"
+                        title="Hapus"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {el.type === "image" || el.type === "sticker" ? (
+                  <img
+                    src={el.content}
+                    alt={el.name || "Sticker"}
+                    draggable={false}
+                    style={{
+                      width: el.width ? `${el.width}px` : "130px",
+                      height: el.height ? `${el.height}px` : "auto",
+                      objectFit: "contain",
+                      pointerEvents: "none",
+                    }}
+                    className="drop-shadow-lg"
+                  />
+                ) : (
+                  <div
+                    style={{
+                      color: el.color || "#1e293b",
+                      fontSize: el.fontSize ? `${el.fontSize}px` : "16px",
+                      fontWeight: el.fontWeight || "bold",
+                      backgroundColor: el.backgroundColor || "transparent",
+                      borderRadius: el.borderRadius ? `${el.borderRadius}px` : undefined,
+                      padding: el.backgroundColor ? "4px 12px" : undefined,
+                      pointerEvents: "none",
+                    }}
+                    className="drop-shadow whitespace-pre-wrap select-none"
+                  >
+                    {el.content}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
         {/* Mock Bottom Footer Bar */}
         <div className="w-full px-4 py-2 flex items-center justify-between text-[10px] text-slate-500 font-bold border-t border-white/10 bg-black/5 z-10 shrink-0">
@@ -630,6 +1107,23 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             >
               <MousePointerClick size={14} />
               <span>Tombol</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("elements")}
+              className={`px-3 py-2 rounded-t-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                activeTab === "elements"
+                  ? "bg-stone-900 text-amber-300 border-t-2 border-amber-400"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              <Layers size={14} />
+              <span>Stiker & Objek</span>
+              {currentDesign.customElements && currentDesign.customElements.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full bg-blue-500 text-white text-[10px] font-mono">
+                  {currentDesign.customElements.length}
+                </span>
+              )}
             </button>
 
             <button
@@ -936,6 +1430,57 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Logo Manual Position Sliders */}
+                    <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-stone-200">Posisi Geser Logo (X & Y)</span>
+                        <button
+                          onClick={() => resetOffset("logo")}
+                          className="text-[10px] text-amber-300 hover:underline cursor-pointer"
+                        >
+                          Reset Tengah
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex justify-between text-stone-400 text-[11px] mb-1">
+                            <span>Kiri/Kanan (X):</span>
+                            <span>{currentDesign.logoOffset?.x || 0}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={-300}
+                            max={300}
+                            value={currentDesign.logoOffset?.x || 0}
+                            onChange={(e) =>
+                              updateCurrentDesign({
+                                logoOffset: { x: parseInt(e.target.value), y: currentDesign.logoOffset?.y || 0 },
+                              })
+                            }
+                            className="w-full accent-amber-400 cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-stone-400 text-[11px] mb-1">
+                            <span>Atas/Bawah (Y):</span>
+                            <span>{currentDesign.logoOffset?.y || 0}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={-300}
+                            max={300}
+                            value={currentDesign.logoOffset?.y || 0}
+                            onChange={(e) =>
+                              updateCurrentDesign({
+                                logoOffset: { x: currentDesign.logoOffset?.x || 0, y: parseInt(e.target.value) },
+                              })
+                            }
+                            className="w-full accent-amber-400 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
@@ -1089,6 +1634,57 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                     className="w-full px-3 py-2 rounded-xl bg-stone-800 border border-white/20 text-white text-xs"
                   />
                 </div>
+
+                {/* Title Manual Position Sliders */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-stone-200">Posisi Geser Judul (X & Y)</span>
+                    <button
+                      onClick={() => resetOffset("title")}
+                      className="text-[10px] text-amber-300 hover:underline cursor-pointer"
+                    >
+                      Reset Tengah
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex justify-between text-stone-400 text-[11px] mb-1">
+                        <span>Kiri/Kanan (X):</span>
+                        <span>{currentDesign.titleOffset?.x || 0}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-300}
+                        max={300}
+                        value={currentDesign.titleOffset?.x || 0}
+                        onChange={(e) =>
+                          updateCurrentDesign({
+                            titleOffset: { x: parseInt(e.target.value), y: currentDesign.titleOffset?.y || 0 },
+                          })
+                        }
+                        className="w-full accent-amber-400 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-stone-400 text-[11px] mb-1">
+                        <span>Atas/Bawah (Y):</span>
+                        <span>{currentDesign.titleOffset?.y || 0}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-300}
+                        max={300}
+                        value={currentDesign.titleOffset?.y || 0}
+                        onChange={(e) =>
+                          updateCurrentDesign({
+                            titleOffset: { x: currentDesign.titleOffset?.x || 0, y: parseInt(e.target.value) },
+                          })
+                        }
+                        className="w-full accent-amber-400 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1180,6 +1776,369 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                         <span className="truncate text-stone-200">{btn.name}</span>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Button Manual Position Sliders */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-stone-200">Posisi Geser Tombol (X & Y)</span>
+                    <button
+                      onClick={() => resetOffset("button")}
+                      className="text-[10px] text-amber-300 hover:underline cursor-pointer"
+                    >
+                      Reset Tengah
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex justify-between text-stone-400 text-[11px] mb-1">
+                        <span>Kiri/Kanan (X):</span>
+                        <span>{currentDesign.buttonOffset?.x || 0}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-300}
+                        max={300}
+                        value={currentDesign.buttonOffset?.x || 0}
+                        onChange={(e) =>
+                          updateCurrentDesign({
+                            buttonOffset: { x: parseInt(e.target.value), y: currentDesign.buttonOffset?.y || 0 },
+                          })
+                        }
+                        className="w-full accent-amber-400 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-stone-400 text-[11px] mb-1">
+                        <span>Atas/Bawah (Y):</span>
+                        <span>{currentDesign.buttonOffset?.y || 0}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-300}
+                        max={300}
+                        value={currentDesign.buttonOffset?.y || 0}
+                        onChange={(e) =>
+                          updateCurrentDesign({
+                            buttonOffset: { x: currentDesign.buttonOffset?.x || 0, y: parseInt(e.target.value) },
+                          })
+                        }
+                        className="w-full accent-amber-400 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: STIKER & ELEMEN BEBAS (CANVA STYLE) */}
+            {activeTab === "elements" && (
+              <div className="space-y-6 text-xs">
+                {/* Banner Info */}
+                <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-200 leading-relaxed flex items-center gap-2.5">
+                  <Sparkles size={20} className="text-amber-400 shrink-0" />
+                  <div>
+                    <strong>Editor Visual Bebas:</strong> Klik stiker, maskot, atau teks untuk memasukkannya ke layar. Kamu bisa langsung menggeser (drag & drop), memutar, dan mengubah ukurannya di kanvas!
+                  </div>
+                </div>
+
+                {/* Section 1: Preset Maskot & Logo Resmi Raicab Banjar V */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-amber-300 font-bold block">Maskot & Logo Resmi</label>
+                    <span className="text-[10px] text-stone-400">Klik untuk tempel ke kanvas</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[
+                      { name: "Maskot Putra", url: "/assets/raicab/maskot-putra.png", width: 140 },
+                      { name: "Maskot Putri", url: "/assets/raicab/maskot-putri.png", width: 140 },
+                      { name: "Logo Raicab V", url: "/assets/raicab/logo-raicab-banjar.png", width: 130 },
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() =>
+                          addCustomElement({
+                            type: "sticker",
+                            name: item.name,
+                            content: item.url,
+                            width: item.width,
+                            x: 50,
+                            y: 50,
+                          })
+                        }
+                        className="p-2.5 rounded-xl bg-stone-900 border border-white/10 hover:border-amber-400 flex flex-col items-center gap-1.5 transition-all cursor-pointer group hover:bg-stone-800"
+                      >
+                        <div className="w-14 h-14 rounded-lg bg-white/10 p-1 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={item.url}
+                            alt={item.name}
+                            className="w-full h-full object-contain group-hover:scale-110 transition-transform"
+                          />
+                        </div>
+                        <span className="text-[11px] font-bold text-stone-200 text-center truncate w-full">
+                          {item.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section 2: Upload Stiker / Foto Sendiri */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                  <label className="text-stone-200 font-bold block">Upload Foto / Stiker PNG Sendiri</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert("Ukuran gambar maksimal 5MB!");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const base64 = ev.target?.result as string;
+                          if (base64) {
+                            addCustomElement({
+                              type: "image",
+                              name: file.name.replace(/\.[^/.]+$/, ""),
+                              content: base64,
+                              width: 140,
+                              x: 50,
+                              y: 50,
+                            });
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="block w-full text-xs text-stone-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                  />
+                  <span className="text-[11px] text-stone-400 block">
+                    Mendukung PNG transparan (stiker, tanda tangan, sponsor) atau foto JPEG.
+                  </span>
+                </div>
+
+                {/* Section 3: Tambah Teks Kustom */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                  <label className="text-stone-200 font-bold block">Tambah Teks Bebas</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newCustomText}
+                      onChange={(e) => setNewCustomText(e.target.value)}
+                      placeholder="Tulis teks tambahan (misal: Booth 01, VIP)..."
+                      className="flex-1 px-3 py-2 rounded-xl bg-stone-800 border border-white/20 text-white text-xs font-semibold"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newCustomText.trim()) {
+                          addCustomElement({
+                            type: "text",
+                            name: newCustomText.trim().substring(0, 15),
+                            content: newCustomText.trim(),
+                            x: 50,
+                            y: 50,
+                            fontSize: newCustomTextSize,
+                            color: newCustomTextColor,
+                            backgroundColor: newCustomTextBg === "transparent" ? undefined : newCustomTextBg,
+                            fontWeight: "bold",
+                            borderRadius: 8,
+                          });
+                          setNewCustomText("");
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newCustomText.trim()) return;
+                        addCustomElement({
+                          type: "text",
+                          name: newCustomText.trim().substring(0, 15),
+                          content: newCustomText.trim(),
+                          x: 50,
+                          y: 50,
+                          fontSize: newCustomTextSize,
+                          color: newCustomTextColor,
+                          backgroundColor: newCustomTextBg === "transparent" ? undefined : newCustomTextBg,
+                          fontWeight: "bold",
+                          borderRadius: 8,
+                        });
+                        setNewCustomText("");
+                      }}
+                      disabled={!newCustomText.trim()}
+                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={14} />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <div>
+                      <span className="block text-[10px] text-stone-400 mb-1">Warna Font</span>
+                      <input
+                        type="color"
+                        value={newCustomTextColor}
+                        onChange={(e) => setNewCustomTextColor(e.target.value)}
+                        className="w-7 h-7 rounded cursor-pointer bg-transparent"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between text-[11px] text-stone-400 mb-1">
+                        <span>Ukuran:</span>
+                        <span>{newCustomTextSize}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={12}
+                        max={48}
+                        value={newCustomTextSize}
+                        onChange={(e) => setNewCustomTextSize(parseInt(e.target.value))}
+                        className="w-full accent-blue-400 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: Stiker Ikon & Emoji Seru */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-3">
+                  <label className="text-stone-200 font-bold block">Ikon & Dekorasi Event Cepat</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[
+                      { label: "Bintang", emoji: "⭐", size: 36 },
+                      { label: "Kamera", emoji: "📸", size: 38 },
+                      { label: "Hati", emoji: "💖", size: 36 },
+                      { label: "Balon", emoji: "🎈", size: 40 },
+                      { label: "Pita", emoji: "🎀", size: 38 },
+                      { label: "Mahkota", emoji: "👑", size: 38 },
+                      { label: "Tunas Cikal", emoji: "🥥", size: 36 },
+                      { label: "Api Unggun", emoji: "🔥", size: 36 },
+                      { label: "Pesta", emoji: "🎉", size: 38 },
+                      { label: "Trofi", emoji: "🏆", size: 38 },
+                    ].map((em, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() =>
+                          addCustomElement({
+                            type: "text",
+                            name: em.label,
+                            content: em.emoji,
+                            x: 50,
+                            y: 50,
+                            fontSize: em.size,
+                            color: "#ffffff",
+                          })
+                        }
+                        className="h-11 rounded-xl bg-stone-900 border border-white/10 hover:border-amber-400 text-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer"
+                        title={em.label}
+                      >
+                        {em.emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section 5: Daftar Objek di Kanvas */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-stone-200 font-bold block">
+                      Lapisan Objek Aktif ({currentDesign.customElements?.length || 0})
+                    </label>
+                    {currentDesign.customElements && currentDesign.customElements.length > 0 && (
+                      <button
+                        onClick={() => updateCurrentDesign({ customElements: [] })}
+                        className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                      >
+                        Hapus Semua
+                      </button>
+                    )}
+                  </div>
+
+                  {(!currentDesign.customElements || currentDesign.customElements.length === 0) ? (
+                    <div className="p-4 rounded-xl border border-dashed border-white/10 text-center text-stone-500 text-xs">
+                      Belum ada objek tambahan. Klik stiker, maskot, atau tambah teks di atas!
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {currentDesign.customElements.map((el, idx) => (
+                        <div
+                          key={el.id}
+                          onClick={() => setSelectedElement(el.id)}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                            selectedElement === el.id
+                              ? "bg-blue-600/20 border-blue-500"
+                              : "bg-stone-900/80 border-white/10 hover:border-white/20"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[10px] font-mono text-stone-500">#{idx + 1}</span>
+                            {el.type === "image" || el.type === "sticker" ? (
+                              <img src={el.content} alt="" className="w-6 h-6 object-contain rounded bg-white/10" />
+                            ) : (
+                              <span className="text-sm">{el.content}</span>
+                            )}
+                            <span className="text-xs font-semibold text-stone-300 truncate max-w-[120px]">
+                              {el.name || el.content}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteCustomElement(el.id);
+                              }}
+                              className="p-1.5 rounded-lg bg-red-600/30 hover:bg-red-600 text-red-300 hover:text-white cursor-pointer"
+                              title="Hapus"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 6: Reset Posisi Elemen Pokok */}
+                <div className="p-4 rounded-2xl bg-stone-950/60 border border-white/10 space-y-2">
+                  <span className="text-stone-300 font-bold block">Reset Posisi Tampilan</span>
+                  <p className="text-[11px] text-stone-400">
+                    Jika ada logo atau judul yang tergeser terlalu jauh, klik tombol di bawah untuk mengembalikan posisi default.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      onClick={() => resetOffset("logo")}
+                      className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs border border-white/10"
+                    >
+                      Reset Logo
+                    </button>
+                    <button
+                      onClick={() => resetOffset("title")}
+                      className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs border border-white/10"
+                    >
+                      Reset Judul
+                    </button>
+                    <button
+                      onClick={() => resetOffset("button")}
+                      className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs border border-white/10"
+                    >
+                      Reset Tombol
+                    </button>
+                    <button
+                      onClick={() => {
+                        resetOffset("logo");
+                        resetOffset("subtitle");
+                        resetOffset("title");
+                        resetOffset("tags");
+                        resetOffset("button");
+                        showToast("✓ Semua posisi elemen utama dikembalikan ke tengah default.");
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 text-xs border border-amber-400/30 font-bold"
+                    >
+                      🔄 Reset Semua
+                    </button>
                   </div>
                 </div>
               </div>
