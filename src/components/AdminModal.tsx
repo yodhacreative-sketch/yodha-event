@@ -884,16 +884,30 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <p className="text-xs text-stone-300">Kustomisasi tata letak, logo, foto latar, gradien & tombol secara live</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          soundFx.playChime();
-                          onOpenStudio();
-                        }}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95"
-                      >
-                        Buka Theme Studio
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${window.location.origin}/studio`;
+                            navigator.clipboard?.writeText(url);
+                            showToast("✓ Link Web Studio disalin! Buka di HP / Laptop lain agar Windows 7 tetap ringan.");
+                          }}
+                          className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer whitespace-nowrap"
+                          title="Buka editor ini di HP atau laptop lain agar laptop booth Windows 7 tetap ringan"
+                        >
+                          🔗 Salin Link HP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundFx.playChime();
+                            onOpenStudio();
+                          }}
+                          className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95"
+                        >
+                          Buka di Sini
+                        </button>
+                      </div>
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-4">
@@ -994,16 +1008,30 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <p className="text-xs text-stone-300">Kustomisasi tata letak, logo, foto latar, gradien & tombol secara live</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          soundFx.playChime();
-                          onOpenStudio();
-                        }}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95"
-                      >
-                        Buka Theme Studio
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${window.location.origin}/studio`;
+                            navigator.clipboard?.writeText(url);
+                            showToast("✓ Link Web Studio disalin! Buka di HP / Laptop lain agar Windows 7 tetap ringan.");
+                          }}
+                          className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer whitespace-nowrap"
+                          title="Buka editor ini di HP atau laptop lain agar laptop booth Windows 7 tetap ringan"
+                        >
+                          🔗 Salin Link HP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundFx.playChime();
+                            onOpenStudio();
+                          }}
+                          className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-md cursor-pointer whitespace-nowrap active:scale-95"
+                        >
+                          Buka di Sini
+                        </button>
+                      </div>
                     </div>
                   )}
 

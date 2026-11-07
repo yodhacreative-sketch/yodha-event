@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { Header } from "./components/Header";
 import { HomeScreen } from "./components/HomeScreen";
 import { FrameScreen } from "./components/FrameScreen";
@@ -6,8 +6,14 @@ import { FilterScreen } from "./components/FilterScreen";
 import { ShootScreen } from "./components/ShootScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
 import { ResultScreen } from "./components/ResultScreen";
-import { AdminModal } from "./components/AdminModal";
-import { ThemeStudio } from "./components/ThemeStudio";
+
+// Lazy load large editor & admin modules so the Windows 7 photobooth kiosk stays super light & fast
+const AdminModal = lazy(() =>
+  import("./components/AdminModal").then((m) => ({ default: m.AdminModal }))
+);
+const ThemeStudio = lazy(() =>
+  import("./components/ThemeStudio").then((m) => ({ default: m.ThemeStudio }))
+);
 import {
   BoothSettings,
   CustomHomeDesign,
@@ -102,9 +108,26 @@ export const App: React.FC = () => {
     (window.location.pathname.includes("/builder") ||
       window.location.pathname.includes("/studio") ||
       window.location.search.includes("builder") ||
-      window.location.hash.includes("builder"));
+      window.location.search.includes("studio") ||
+      window.location.hash.includes("builder") ||
+      window.location.hash.includes("studio"));
 
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(isStudioUrl);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const match =
+        window.location.pathname.includes("/builder") ||
+        window.location.pathname.includes("/studio") ||
+        window.location.search.includes("builder") ||
+        window.location.search.includes("studio") ||
+        window.location.hash.includes("builder") ||
+        window.location.hash.includes("studio");
+      setIsStudioOpen(match);
+    };
+    window.addEventListener("popstate", handleUrlChange);
+    return () => window.removeEventListener("popstate", handleUrlChange);
+  }, []);
   const [activeCustomDesign, setActiveCustomDesign] = useState<CustomHomeDesign>(getActiveCustomDesign);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -413,20 +436,31 @@ export const App: React.FC = () => {
 
   if (isStudioOpen) {
     return (
-      <ThemeStudio
-        driveConfig={driveConfig}
-        onBackToKiosk={() => {
-          setIsStudioOpen(false);
-          setActiveCustomDesign(getActiveCustomDesign());
-          if (
-            typeof window !== "undefined" &&
-            (window.location.pathname.includes("/builder") ||
-              window.location.pathname.includes("/studio"))
-          ) {
-            window.history.pushState({}, "", "/");
-          }
-        }}
-      />
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center text-stone-300 gap-3">
+            <div className="w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-semibold">Memuat Theme Studio...</p>
+          </div>
+        }
+      >
+        <ThemeStudio
+          driveConfig={driveConfig}
+          onBackToKiosk={() => {
+            setIsStudioOpen(false);
+            setActiveCustomDesign(getActiveCustomDesign());
+            if (
+              typeof window !== "undefined" &&
+              (window.location.pathname.includes("/builder") ||
+                window.location.pathname.includes("/studio") ||
+                window.location.search.includes("studio") ||
+                window.location.search.includes("builder"))
+            ) {
+              window.history.pushState({}, "", "/");
+            }
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -590,27 +624,31 @@ export const App: React.FC = () => {
         </span>
       </footer>
 
-      {/* Admin Settings Modal */}
-      <AdminModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        weddingConfig={weddingConfig}
-        onSaveWeddingConfig={handleSaveWedding}
-        partyConfig={partyConfig}
-        onSavePartyConfig={handleSaveParty}
-        driveConfig={driveConfig}
-        onSaveDriveConfig={handleSaveDrive}
-        boothSettings={boothSettings}
-        onSaveBoothSettings={handleSaveBooth}
-        frameSlots={frameSlots}
-        onSaveFrameSlots={handleSaveSlots}
-        partyFrameSlots={partyFrameSlots}
-        onSavePartyFrameSlots={handleSavePartySlots}
-        onOpenStudio={() => {
-          setIsAdminOpen(false);
-          setIsStudioOpen(true);
-        }}
-      />
+      {/* Admin Settings Modal (Lazy Loaded only when opened) */}
+      {isAdminOpen && (
+        <Suspense fallback={null}>
+          <AdminModal
+            isOpen={isAdminOpen}
+            onClose={() => setIsAdminOpen(false)}
+            weddingConfig={weddingConfig}
+            onSaveWeddingConfig={handleSaveWedding}
+            partyConfig={partyConfig}
+            onSavePartyConfig={handleSaveParty}
+            driveConfig={driveConfig}
+            onSaveDriveConfig={handleSaveDrive}
+            boothSettings={boothSettings}
+            onSaveBoothSettings={handleSaveBooth}
+            frameSlots={frameSlots}
+            onSaveFrameSlots={handleSaveSlots}
+            partyFrameSlots={partyFrameSlots}
+            onSavePartyFrameSlots={handleSavePartySlots}
+            onOpenStudio={() => {
+              setIsAdminOpen(false);
+              setIsStudioOpen(true);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
