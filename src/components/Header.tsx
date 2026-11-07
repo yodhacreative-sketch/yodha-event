@@ -117,20 +117,6 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Quick Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* DIY Theme Studio Button */}
-        {onOpenStudio && (
-          <button
-            onClick={() => {
-              soundFx.playChime();
-              onOpenStudio();
-            }}
-            className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white active:scale-95"
-            title="Buka Web Studio DIY Theme Builder"
-          >
-            <Paintbrush size={14} className="animate-pulse" />
-            <span className="hidden sm:inline">Theme Studio (DIY)</span>
-          </button>
-        )}
         {/* Sound toggle */}
         <button
           onClick={() => {
