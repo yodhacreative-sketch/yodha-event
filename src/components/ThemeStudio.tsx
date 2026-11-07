@@ -160,6 +160,11 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
   ) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     e.stopPropagation();
+    e.preventDefault();
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
 
     setSelectedElement(elementId);
     if (elementId === "logo") setActiveTab("logo");
@@ -181,13 +186,17 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     const startTopPercent = customElement?.y ?? 50;
 
     let hasMoved = false;
-    let rafId: number | null = null;
-    let latestEv: PointerEvent | null = null;
 
-    const applyMove = () => {
-      if (!latestEv) return;
-      const deltaX = latestEv.clientX - startX;
-      const deltaY = latestEv.clientY - startY;
+    const onPointerMove = (moveEv: PointerEvent) => {
+      moveEv.preventDefault();
+      moveEv.stopPropagation();
+
+      const deltaX = moveEv.clientX - startX;
+      const deltaY = moveEv.clientY - startY;
+
+      if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+        hasMoved = true;
+      }
 
       if (isCustom) {
         const pctX = (deltaX / canvasRect.width) * 100;
@@ -226,27 +235,19 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           )
         );
       }
-      rafId = null;
     };
 
-    const onPointerMove = (moveEv: PointerEvent) => {
-      hasMoved = true;
-      moveEv.preventDefault();
-      latestEv = moveEv;
-      if (!rafId) {
-        rafId = requestAnimationFrame(applyMove);
-      }
-    };
-
-    const onPointerUp = () => {
+    const onPointerUp = (upEv: PointerEvent) => {
+      upEv.stopPropagation();
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
 
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        applyMove();
-      }
+      try {
+        if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+          (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        }
+      } catch {}
 
       if (hasMoved) {
         setDesigns((prev) => {
@@ -257,7 +258,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
       }
     };
 
-    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
   };
@@ -270,20 +271,26 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     corner: "nw" | "ne" | "sw" | "se",
     initialVal: number
   ) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
     e.stopPropagation();
     e.preventDefault();
     soundFx.playPop();
 
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+
     const startX = e.clientX;
     const startY = e.clientY;
     let hasMoved = false;
-    let rafId: number | null = null;
-    let latestEv: PointerEvent | null = null;
 
-    const applyResize = () => {
-      if (!latestEv) return;
-      const deltaX = latestEv.clientX - startX;
-      const deltaY = latestEv.clientY - startY;
+    const onPointerMove = (moveEv: PointerEvent) => {
+      moveEv.preventDefault();
+      moveEv.stopPropagation();
+      hasMoved = true;
+
+      const deltaX = moveEv.clientX - startX;
+      const deltaY = moveEv.clientY - startY;
 
       let delta = 0;
       if (corner === "se") delta = (deltaX + deltaY) / 2;
@@ -327,27 +334,19 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
           )
         );
       }
-      rafId = null;
     };
 
-    const onPointerMove = (moveEv: PointerEvent) => {
-      hasMoved = true;
-      moveEv.preventDefault();
-      latestEv = moveEv;
-      if (!rafId) {
-        rafId = requestAnimationFrame(applyResize);
-      }
-    };
-
-    const onPointerUp = () => {
+    const onPointerUp = (upEv: PointerEvent) => {
+      upEv.stopPropagation();
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
 
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        applyResize();
-      }
+      try {
+        if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+          (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        }
+      } catch {}
 
       if (hasMoved) {
         setDesigns((prev) => {
@@ -358,7 +357,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
       }
     };
 
-    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
   };
@@ -635,7 +634,11 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
     return (
       <div
         id="canva-preview-canvas"
-        onClick={() => setSelectedElement(null)}
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) {
+            setSelectedElement(null);
+          }
+        }}
         className="w-full h-full min-h-[500px] sm:min-h-[600px] flex flex-col justify-between items-center relative overflow-hidden select-none transition-all bg-white shadow-[0_16px_50px_rgba(0,0,0,0.12)] rounded-2xl border border-slate-200/90"
         style={bgStyle}
       >
@@ -689,7 +692,14 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
         </div>
 
         {/* Center Content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center z-10 w-full max-w-4xl relative">
+        <div
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedElement(null);
+            }
+          }}
+          className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center z-10 w-full max-w-4xl relative"
+        >
           {/* Logo / Badge */}
           {d.showLogo && (
             <div
@@ -950,7 +960,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
                 }}
               />
               <span
-                className="px-4 py-1 rounded-full font-black tracking-[0.16em] text-[11px] sm:text-xs uppercase shadow-xs border truncate max-w-[80vw]"
+                className="px-4 py-1 rounded-full font-black tracking-[0.16em] text-[11px] sm:text-xs uppercase shadow-xs border truncate max-w-[80vw] pointer-events-none select-none"
                 style={{
                   backgroundColor: d.subtitleBgColor || "#ffffff",
                   color: d.subtitleTextColor || "#622599",
@@ -1096,7 +1106,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
             )}
 
             <h1
-              className={`${getFontFamilyClass()} ${getTitleSizeClass()} font-black py-1 px-4 drop-shadow-xs leading-tight tracking-tight overflow-visible break-words select-none`}
+              className={`${getFontFamilyClass()} ${getTitleSizeClass()} font-black py-1 px-4 drop-shadow-xs leading-tight tracking-tight overflow-visible break-words select-none pointer-events-none`}
               style={
                 d.titleColorType === "gradient" && d.titleGradient
                   ? {
@@ -1199,7 +1209,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
 
             {d.showDateTag && d.dateText && (
               <span
-                className="px-3.5 py-1 rounded-full border shadow-xs text-xs font-bold"
+                className="px-3.5 py-1 rounded-full border shadow-xs text-xs font-bold pointer-events-none select-none"
                 style={{
                   backgroundColor: d.dateBgColor || "#ffffff",
                   color: d.dateTextColor || "#0094B4",
@@ -1210,11 +1220,11 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
               </span>
             )}
             {d.showDateTag && d.showHashtagTag && (
-              <span className="text-slate-400 font-bold">•</span>
+              <span className="text-slate-400 font-bold pointer-events-none select-none">•</span>
             )}
             {d.showHashtagTag && d.hashtagText && (
               <span
-                className="px-3.5 py-1 rounded-full border shadow-xs text-xs font-bold"
+                className="px-3.5 py-1 rounded-full border shadow-xs text-xs font-bold pointer-events-none select-none"
                 style={{
                   backgroundColor: d.hashtagBgColor || "#ffffff",
                   color: d.hashtagTextColor || "#622599",
@@ -1355,7 +1365,7 @@ export const ThemeStudio: React.FC<ThemeStudioProps> = ({
 
             <button
               onClick={() => soundFx.playChime()}
-              className={`px-8 py-3.5 sm:px-12 sm:py-4 flex items-center justify-center gap-2.5 text-base font-bold group transition-transform ${getButtonShapeClass()}`}
+              className={`px-8 py-3.5 sm:px-12 sm:py-4 flex items-center justify-center gap-2.5 text-base font-bold group transition-transform pointer-events-none select-none ${getButtonShapeClass()}`}
               style={{
                 background:
                   d.buttonBgType === "gradient" && d.buttonBgGradient
