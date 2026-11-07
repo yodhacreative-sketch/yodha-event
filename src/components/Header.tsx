@@ -28,17 +28,22 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdmin,
   onOpenStudio,
 }) => {
-  const isParty = themeMode === "party" || Boolean(customDesign);
+  const isParty = themeMode === "party";
+  const isCustom = themeMode === "custom" && Boolean(customDesign);
 
   const brandTitle =
-    customDesign?.headerBrandText ||
-    (isParty ? "RAICAB BANJAR V • PHOTOBOOTH" : "Wedding Photobooth");
+    isCustom
+      ? customDesign?.headerBrandText || "Custom Photobooth"
+      : isParty
+      ? "RAICAB BANJAR V • PHOTOBOOTH"
+      : "Wedding Photobooth";
 
   const brandSubtitle =
-    customDesign?.headerSubtitleText ||
-    (isParty
+    isCustom
+      ? customDesign?.headerSubtitleText || "Photobooth"
+      : isParty
       ? partyConfig?.eventName || "RAIMUNA CABANG V BANJARNEGARA"
-      : `${weddingConfig.brideName} & ${weddingConfig.groomName}`);
+      : `${weddingConfig.brideName} & ${weddingConfig.groomName}`;
 
   return (
     <header className={`w-full px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between z-30 select-none shrink-0 gap-2 transition-colors ${
@@ -48,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
     }`}>
       {/* Left: Branding */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {customDesign ? (
+        {isCustom && customDesign ? (
           <>
             {customDesign.showLogo && customDesign.logoUrl ? (
               <div className="h-8 sm:h-9 px-1.5 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0 border border-orange-200">

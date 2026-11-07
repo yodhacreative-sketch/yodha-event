@@ -42,7 +42,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // ----------------------------------------------------
   // TEMA CUSTOM DIY BUILDER (DARI GOOGLE DRIVE / ONLINE / LOCAL)
   // ----------------------------------------------------
-  if (themeMode === "custom" || customDesign) {
+  if (themeMode === "custom" && customDesign) {
     const d = customDesign;
     if (d) {
       const getFontFamilyClass = () => {

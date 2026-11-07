@@ -8,10 +8,10 @@ import { ReviewScreen } from "./components/ReviewScreen";
 import { ResultScreen } from "./components/ResultScreen";
 import { AdminModal } from "./components/AdminModal";
 
-// Lazy load large DIY visual editor so the Windows 7 photobooth kiosk stays super light & fast
-const ThemeStudio = lazy(() =>
-  import("./components/ThemeStudio").then((m) => ({ default: m.ThemeStudio }))
-);
+// Canva Theme Studio di-hide sementara agar website sangat ringan & cepat di laptop booth (Backup tersimpan di Downloads)
+// const ThemeStudio = lazy(() =>
+//   import("./components/ThemeStudio").then((m) => ({ default: m.ThemeStudio }))
+// );
 import {
   BoothSettings,
   CustomHomeDesign,
@@ -100,31 +100,17 @@ export const App: React.FC = () => {
     }
   }, [themeMode, currentThemeSlots]);
 
-  // UI state
-  const isStudioUrl =
-    typeof window !== "undefined" &&
-    (window.location.pathname.includes("/builder") ||
-      window.location.pathname.includes("/studio") ||
-      window.location.search.includes("builder") ||
-      window.location.search.includes("studio") ||
-      window.location.hash.includes("builder") ||
-      window.location.hash.includes("studio"));
-
-  const [isStudioOpen, setIsStudioOpen] = useState<boolean>(isStudioUrl);
-
+  // Redirect studio/builder URL to root while Canva studio is hidden
   useEffect(() => {
-    const handleUrlChange = () => {
-      const match =
-        window.location.pathname.includes("/builder") ||
+    if (
+      typeof window !== "undefined" &&
+      (window.location.pathname.includes("/builder") ||
         window.location.pathname.includes("/studio") ||
         window.location.search.includes("builder") ||
-        window.location.search.includes("studio") ||
-        window.location.hash.includes("builder") ||
-        window.location.hash.includes("studio");
-      setIsStudioOpen(match);
-    };
-    window.addEventListener("popstate", handleUrlChange);
-    return () => window.removeEventListener("popstate", handleUrlChange);
+        window.location.search.includes("studio"))
+    ) {
+      window.history.replaceState({}, "", "/");
+    }
   }, []);
   const [activeCustomDesign, setActiveCustomDesign] = useState<CustomHomeDesign>(getActiveCustomDesign);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -264,7 +250,8 @@ export const App: React.FC = () => {
           setActiveCustomDesign(getActiveCustomDesign());
         }
 
-        // 3. Google Apps Script / Drive Sync (Custom Designs)
+        // 3. Google Apps Script / Drive Sync (Custom Designs) - Di-pause saat Canva Studio di-hide untuk menjaga performa booth tetap ringan
+        /*
         const targetDriveUrl = serverData.driveConfig?.appsScriptUrl || driveConfig.appsScriptUrl;
         if (targetDriveUrl) {
           try {
@@ -282,6 +269,7 @@ export const App: React.FC = () => {
             }
           } catch (_) {}
         }
+        */
       } else {
         // If server is currently empty, push current device's configuration to server
         // ONLY if we have valid non-default frames loaded
@@ -432,36 +420,6 @@ export const App: React.FC = () => {
     setCurrentScreen("home");
   };
 
-  if (isStudioOpen) {
-    return (
-      <Suspense
-        fallback={
-          <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center text-stone-300 gap-3">
-            <div className="w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-semibold">Memuat Theme Studio...</p>
-          </div>
-        }
-      >
-        <ThemeStudio
-          driveConfig={driveConfig}
-          onBackToKiosk={() => {
-            setIsStudioOpen(false);
-            setActiveCustomDesign(getActiveCustomDesign());
-            if (
-              typeof window !== "undefined" &&
-              (window.location.pathname.includes("/builder") ||
-                window.location.pathname.includes("/studio") ||
-                window.location.search.includes("studio") ||
-                window.location.search.includes("builder"))
-            ) {
-              window.history.pushState({}, "", "/");
-            }
-          }}
-        />
-      </Suspense>
-    );
-  }
-
   return (
     <div className={`min-h-[100dvh] h-[100dvh] max-h-[100dvh] w-full max-w-full flex flex-col justify-between relative overflow-hidden transition-colors duration-500 ${
       isParty
@@ -481,7 +439,6 @@ export const App: React.FC = () => {
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         onOpenAdmin={() => setIsAdminOpen(true)}
-        onOpenStudio={() => setIsStudioOpen(true)}
       />
 
       {/* Main Dynamic Viewport */}
@@ -639,10 +596,6 @@ export const App: React.FC = () => {
           onSaveFrameSlots={handleSaveSlots}
           partyFrameSlots={partyFrameSlots}
           onSavePartyFrameSlots={handleSavePartySlots}
-          onOpenStudio={() => {
-            setIsAdminOpen(false);
-            setIsStudioOpen(true);
-          }}
         />
       )}
     </div>
