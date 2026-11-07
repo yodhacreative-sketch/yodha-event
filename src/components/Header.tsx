@@ -117,22 +117,6 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Quick Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Canva DIY Studio Button */}
-        {onOpenStudio && (
-          <button
-            onClick={() => {
-              soundFx.playChime();
-              onOpenStudio();
-            }}
-            className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-full flex items-center gap-1.5 bg-gradient-to-r from-[#00C4CC] via-[#7D2AE8] to-[#5433FF] hover:opacity-95 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
-            title="Buka DIY Canva Theme Studio"
-          >
-            <Sparkles size={14} className="text-yellow-300 animate-spin" />
-            <span className="hidden sm:inline">Edit Desain (Canva)</span>
-            <span className="sm:hidden">Canva</span>
-          </button>
-        )}
-
         {/* Sound toggle */}
         <button
           onClick={() => {

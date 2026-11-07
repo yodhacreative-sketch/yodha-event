@@ -494,8 +494,6 @@ export const App: React.FC = () => {
             themeMode={themeMode}
             customDesign={activeCustomDesign}
             onStart={() => setCurrentScreen("frame")}
-            onOpenStudio={() => setIsStudioOpen(true)}
-            onUpdateCustomDesign={(updated) => setActiveCustomDesign(updated)}
           />
         )}
 
